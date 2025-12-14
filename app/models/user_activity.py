@@ -1,18 +1,16 @@
 from sqlalchemy.orm import Mapped, mapped_column, relationship
-from sqlalchemy import Integer, DateTime, ForeignKey, func
-from datetime import datetime
+from sqlalchemy import Integer, ForeignKey
 from .base import Base
 
 class UserActivity(Base):
     __tablename__ = "user_activity"
-
-    user_activity_id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    user_id: Mapped[int] = mapped_column(Integer, ForeignKey("users.user_id"), nullable=False)
-
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
-
+    
+    user_activity_id: Mapped[int] = mapped_column(primary_key=True)
+    auth_identities_id: Mapped[int] = mapped_column(Integer, ForeignKey("auth_identities.auth_identities_id"))
+    user_id: Mapped[int] = mapped_column(Integer, ForeignKey("users.user_id"))
+    chat_messages_id: Mapped[int] = mapped_column(Integer, ForeignKey("chat_messages.chat_messages_id"))
+    
+    auth_identity: Mapped["AuthIdentity"] = relationship("AuthIdentity", back_populates="user_activities")
     user: Mapped["User"] = relationship("User", back_populates="user_activities")
-    auth_identities: Mapped[list["AuthIdentity"]] = relationship("AuthIdentity", back_populates="user_activity")
+    chat_message: Mapped["ChatMessage"] = relationship("ChatMessage", back_populates="user_activities")
     goals: Mapped[list["Goal"]] = relationship("Goal", back_populates="user_activity")
-    chats: Mapped[list["Chat"]] = relationship("Chat", secondary="chat_participants", back_populates="user_activities")
-    user_authorizations: Mapped[list["UserAuthorization"]] = relationship("UserAuthorization", back_populates="user_activity")

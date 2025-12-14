@@ -1,19 +1,19 @@
 from sqlalchemy.orm import Mapped, mapped_column, relationship
-from sqlalchemy import Integer, String, Boolean, DateTime, ForeignKey, func
+from sqlalchemy import String, Boolean, DateTime
+from typing import Optional
 from datetime import datetime
 from .base import Base
 
 class User(Base):
     __tablename__ = "users"
-
-    user_id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    username: Mapped[str] = mapped_column(String(50), unique=True, nullable=False)
-    name: Mapped[str] = mapped_column(String(100))
-    surname: Mapped[str] = mapped_column(String(100))
-    patronymic: Mapped[str] = mapped_column(String(100), nullable=True)
+    
+    user_id: Mapped[int] = mapped_column(primary_key=True)
+    name: Mapped[str] = mapped_column(String(100), nullable=False)
+    surname: Mapped[str] = mapped_column(String(100), nullable=False)
+    patronymic: Mapped[Optional[str]] = mapped_column(String(100))
     email_verified: Mapped[bool] = mapped_column(Boolean, default=False)
-    avatar_url: Mapped[str] = mapped_column(String(255), nullable=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
-    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), onupdate=func.now())
-
+    avatar_url: Mapped[Optional[str]] = mapped_column(String(255))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow, onupdate=datetime.utcnow)
+    
     user_activities: Mapped[list["UserActivity"]] = relationship("UserActivity", back_populates="user")
