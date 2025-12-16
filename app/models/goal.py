@@ -14,6 +14,5 @@ class Goal(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow)
     completed: Mapped[bool] = mapped_column(Boolean, default=False)
     
-    # Relationships
     user_activity: Mapped["UserActivity"] = relationship("UserActivity", back_populates="goals")
     tasks: Mapped[list["Task"]] = relationship("Task", back_populates="goal")
