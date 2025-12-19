@@ -1,5 +1,7 @@
 from pydantic_settings import BaseSettings
+from pydantic import ConfigDict
 from yarl import URL
+from typing import Optional
 
 class Settings(BaseSettings):
     POSTGRES_HOST: str
@@ -14,8 +16,34 @@ class Settings(BaseSettings):
     ACCESS_TOKEN_EXPIRE_MINUTES: int
     REFRESH_TOKEN_EXPIRE_HOURS: int 
 
-    class Config:
-        env_file = ".env"
+    REDIS_HOST: str = "localhost"
+    REDIS_PORT: int = 6379
+    REDIS_DB: int = 0
+    REDIS_PASSWORD: Optional[str] = None
+
+    MAILTRAP_API_TOKEN: str
+    MAILTRAP_SENDER_EMAIL: str = "noreply@targetlayer.com"
+    MAILTRAP_SENDER_NAME: str = "TargetLayer"
+
+    AI_PROVIDER: str = "ollama"
+
+    OLLAMA_BASE_URL: str = "http://localhost:11434"
+    OLLAMA_TIMEOUT: int = 120
+    AI_MODEL_NAME: str = "tinyllama" 
+
+    TINYLLAMA_MODEL_PATH: Optional[str] = None
+    TINYLLAMA_N_CTX: int = 2048
+
+    AI_MAX_TOKENS: int = 4096
+    AI_TEMPERATURE: float = 0.7
+    AI_CACHE_TTL: int = 3600
+    AI_ENABLED: bool = True
+
+    model_config = ConfigDict(
+        env_file=".env",
+        case_sensitive=True,
+        extra="ignore"  
+    )
 
     @property
     def db_url(self) -> str:  
@@ -38,5 +66,11 @@ class Settings(BaseSettings):
             password=self.POSTGRES_PASSWORD,
             path=f"/{self.POSTGRES_DB}"
         ))
+
+    @property
+    def redis_url(self) -> str:
+        if self.REDIS_PASSWORD:
+            return f"redis://:{self.REDIS_PASSWORD}@{self.REDIS_HOST}:{self.REDIS_PORT}/{self.REDIS_DB}"
+        return f"redis://{self.REDIS_HOST}:{self.REDIS_PORT}/{self.REDIS_DB}"
 
 settings = Settings()
