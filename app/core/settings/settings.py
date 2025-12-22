@@ -9,7 +9,7 @@ class Settings(BaseSettings):
     POSTGRES_USER: str
     POSTGRES_PASSWORD: str
     POSTGRES_DB: str
-    API_BASE_PORT: int
+    API_BASE_PORT: int 
 
     SECRET_KEY: str
     ALGORITHM: str 
@@ -21,15 +21,16 @@ class Settings(BaseSettings):
     REDIS_DB: int = 0
     REDIS_PASSWORD: Optional[str] = None
 
-    MAILTRAP_API_TOKEN: str
-    MAILTRAP_SENDER_EMAIL: str = "noreply@targetlayer.com"
-    MAILTRAP_SENDER_NAME: str = "TargetLayer"
+
+    SUPABASE_URL: Optional[str] = None
+    SUPABASE_SERVICE_ROLE_KEY: Optional[str] = None
+    SUPABASE_ANON_KEY: Optional[str] = None
 
     AI_PROVIDER: str = "ollama"
 
     OLLAMA_BASE_URL: str = "http://localhost:11434"
     OLLAMA_TIMEOUT: int = 120
-    AI_MODEL_NAME: str = "tinyllama" 
+    AI_MODEL_NAME: str = "tinyllama"
 
     TINYLLAMA_MODEL_PATH: Optional[str] = None
     TINYLLAMA_N_CTX: int = 2048
@@ -41,25 +42,15 @@ class Settings(BaseSettings):
 
     model_config = ConfigDict(
         env_file=".env",
+        env_file_encoding="utf-8",
         case_sensitive=True,
-        extra="ignore"  
+        extra="ignore"
     )
 
     @property
     def db_url(self) -> str:  
         return str(URL.build(
             scheme="postgresql+asyncpg",
-            host=self.POSTGRES_HOST,
-            port=self.POSTGRES_PORT,
-            user=self.POSTGRES_USER,
-            password=self.POSTGRES_PASSWORD,
-            path=f"/{self.POSTGRES_DB}"
-        ))
-
-    @property
-    def db_url_sync(self) -> str:  
-        return str(URL.build(
-            scheme="postgresql+psycopg2", 
             host=self.POSTGRES_HOST,
             port=self.POSTGRES_PORT,
             user=self.POSTGRES_USER,

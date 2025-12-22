@@ -1,8 +1,8 @@
-"""suka blyat
+"""adding verify table 
 
-Revision ID: e33015ecfc0b
+Revision ID: ac14aa8a4689
 Revises: 
-Create Date: 2025-12-16 22:29:51.050264
+Create Date: 2025-12-22 13:00:17.174947
 
 """
 from typing import Sequence, Union
@@ -12,7 +12,7 @@ import sqlalchemy as sa
 
 
 # revision identifiers, used by Alembic.
-revision: str = 'e33015ecfc0b'
+revision: str = 'ac14aa8a4689'
 down_revision: Union[str, Sequence[str], None] = None
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
@@ -25,6 +25,7 @@ def upgrade() -> None:
     sa.Column('auth_identities_id', sa.Integer(), nullable=False),
     sa.Column('email', sa.String(length=255), nullable=True),
     sa.Column('password', sa.String(length=255), nullable=True),
+    sa.Column('is_verified', sa.Boolean(), nullable=False),
     sa.PrimaryKeyConstraint('auth_identities_id')
     )
     op.create_table('chats',
