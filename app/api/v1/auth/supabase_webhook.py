@@ -15,11 +15,6 @@ async def supabase_webhook(
     x_service_role: str | None = Header(None, convert_underscores=False),
     db: AsyncSession = Depends(get_db),
 ):
-    """Receive Supabase Auth webhook and sync email confirmation to main DB.
-
-    Minimal verification: require header `X-Service-Role` to match configured service role key.
-    Payload is expected to include a `user` object with `email` and `email_confirmed_at`.
-    """
     if not x_service_role or x_service_role != settings.SUPABASE_SERVICE_ROLE_KEY:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid webhook signature")
 

@@ -5,19 +5,19 @@ from app.schemas.ai_schemas import (
     AIChatResponse,
     AIHealthCheck,
     GoalDecompositionRequest,
-    GoalDecompositionResponse
+    GoalDecompositionResponse,
+    RoadmapRequest  # Добавьте этот импорт
 )
-from app.core.ai.ai_helpers import QuickResponseMode, optimizer, response_cache
+from app.core.ai.ai_helpers import optimizer, response_cache
 
 router = APIRouter(
     prefix="/api/v1/ai",
-    tags=["AI - Tinyllama Model"],
+    tags=["AI - Ollama Model"],
     responses={
         500: {"description": "Internal Server Error"},
         503: {"description": "Service Unavailable"}
     }
 )
-
 
 @router.get(
     "/health",
@@ -49,7 +49,6 @@ async def health_check(ai_service: AIService = Depends(get_ai_service)) -> AIHea
             message=f"Ошибка подключения: {str(e)}"
         )
 
-
 @router.post(
     "/chat",
     response_model=AIChatResponse,
@@ -61,7 +60,13 @@ async def chat(
     ai_service: AIService = Depends(get_ai_service)
 ) -> AIChatResponse:
     try:
-        mode_config = QuickResponseMode.get_config(mode)
+        # Mode-based config for response parameters
+        mode_configs = {
+            "quick": {"max_tokens": 256, "temperature": 0.3},
+            "balanced": {"max_tokens": 512, "temperature": 0.6},
+            "detailed": {"max_tokens": 2048, "temperature": 0.7},
+        }
+        mode_config = mode_configs.get(mode, mode_configs["balanced"])
         
         cache_key = response_cache.generate_key(
             request.message,
@@ -116,7 +121,6 @@ async def chat(
             detail=f"Internal server error: {str(e)}"
         )
 
-
 @router.post(
     "/decompose-goal",
     response_model=AIChatResponse,
@@ -160,7 +164,6 @@ async def decompose_goal(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=str(e)
         )
-
 
 @router.post(
     "/generate-tasks",
@@ -206,7 +209,6 @@ async def generate_tasks(
             detail=str(e)
         )
 
-
 @router.post(
     "/analyze",
     response_model=AIChatResponse,
@@ -251,6 +253,88 @@ async def analyze(
             detail=str(e)
         )
 
+# ДОБАВЬТЕ ЭТОТ НОВЫЙ ЭНДПОИНТ ДЛЯ ГЕНЕРАЦИИ РОАДМАПОВ
+@router.post(
+    "/generate-roadmap",
+    response_model=AIChatResponse,
+    summary="Генерация роадмапа для цели",
+)
+async def generate_roadmap(
+    goal: str = Query(..., description="Цель пользователя"),
+    timeframe: str = Query(..., description="Временные рамки (например: '6 месяцев')"),
+    current_level: str = Query(None, description="Текущий уровень (например: 'новичок')"),
+    available_time: str = Query(None, description="Доступное время в день/неделю"),
+    preferences: str = Query(None, description="Предпочтения пользователя через запятую"),
+    ai_service: AIService = Depends(get_ai_service)
+) -> AIChatResponse:
+    try:
+        is_available = await ai_service.check_model_availability()
+        if not is_available:
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail=f"Модель {ai_service.model_name} недоступна"
+            )
+
+        # Преобразуем строку предпочтений в список
+        preferences_list = None
+        if preferences:
+            preferences_list = [p.strip() for p in preferences.split(',')]
+
+        result = await ai_service.generate_roadmap(
+            goal=goal,
+            timeframe=timeframe,
+            current_level=current_level,
+            available_time=available_time,
+            preferences=preferences_list
+        )
+
+        if result.get("error"):
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=result.get("message")
+            )
+
+        return AIChatResponse(
+            response=result["roadmap"],  # Используем roadmap вместо response
+            tokens_used=result.get("tokens_used"),
+            processing_time=result.get("processing_time"),
+            model=result.get("model")
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=str(e)
+        )
+
+# ДОБАВЬТЕ ЭТОТ ЭНДПОИНТ ДЛЯ ПАРСИНГА ЗАДАЧ ИЗ РОАДМАПА
+@router.post(
+    "/parse-roadmap-tasks",
+    summary="Парсинг задач из роадмапа",
+)
+async def parse_roadmap_tasks(
+    roadmap_text: str,
+    ai_service: AIService = Depends(get_ai_service)
+):
+    """Парсит задачи из текста роадмапа в структурированный формат"""
+    try:
+        tasks = ai_service._extract_tasks_from_roadmap(roadmap_text)
+        structured = ai_service._structure_tasks_for_db(tasks)
+        
+        return {
+            "total_tasks": len(tasks),
+            "tasks": tasks,
+            "structured_tasks": structured,
+            "stages": list(set([t['stage'] for t in tasks if t['stage']]))
+        }
+        
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=str(e)
+        )
 
 @router.get(
     "/model-info",

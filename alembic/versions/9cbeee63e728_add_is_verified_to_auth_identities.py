@@ -1,8 +1,8 @@
-"""adding verify table 
+"""add is_verified to auth_identities
 
-Revision ID: ac14aa8a4689
+Revision ID: 9cbeee63e728
 Revises: 
-Create Date: 2025-12-22 13:00:17.174947
+Create Date: 2025-12-23 00:24:04.790147
 
 """
 from typing import Sequence, Union
@@ -12,7 +12,7 @@ import sqlalchemy as sa
 
 
 # revision identifiers, used by Alembic.
-revision: str = 'ac14aa8a4689'
+revision: str = '9cbeee63e728'
 down_revision: Union[str, Sequence[str], None] = None
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None

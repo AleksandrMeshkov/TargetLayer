@@ -1,5 +1,5 @@
 from pydantic import BaseModel, Field
-from typing import Optional, List
+from typing import Optional, List, Dict, Any
 from datetime import datetime
 
 
@@ -85,7 +85,7 @@ class AIHealthCheck(BaseModel):
             "example": {
                 "status": "healthy",
                 "model_available": True,
-                "model_name": "tinyllama",
+                "model_name": "phi3:mini",
                 "message": "AI сервис работает нормально"
             }
         }
@@ -157,5 +157,71 @@ class AIModelInfo(BaseModel):
                 "context_window": 4096,
                 "max_tokens_per_request": 4096,
                 "supported_languages": ["en", "ru"]
+            }
+        }
+
+
+class RoadmapRequest(BaseModel):
+    goal: str = Field(..., description="Цель пользователя", min_length=5, max_length=500)
+    timeframe: str = Field(..., description="Временные рамки (например: '6 месяцев')")
+    current_level: Optional[str] = Field(None, description="Текущий уровень (например: 'новичок')")
+    available_time: Optional[str] = Field(None, description="Доступное время в день/неделю")
+    preferences: Optional[List[str]] = Field(None, description="Предпочтения пользователя")
+
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "goal": "Выучить английский язык с нуля",
+                "timeframe": "6 месяцев",
+                "current_level": "новичок",
+                "available_time": "1 час в день",
+                "preferences": ["разговорная практика", "фильмы на английском"]
+            }
+        }
+
+
+class TaskItem(BaseModel):
+    """Модель задачи"""
+    title: str = Field(..., description="Название задачи")
+    description: str = Field(..., description="Описание задачи")
+    month: Optional[str] = Field(None, description="Месяц/этап")
+    stage: Optional[str] = Field(None, description="Стадия/этап")
+    metrics: Optional[str] = Field(None, description="Метрики выполнения")
+    deadline: Optional[str] = Field(None, description="Срок выполнения")
+    priority: str = Field("medium", description="Приоритет: high|medium|low")
+    estimated_time: str = Field("1 неделя", description="Оценка времени")
+    completed: bool = Field(False, description="Выполнено ли")
+    dependencies: List[str] = Field(default_factory=list, description="Зависимости")
+
+
+class RoadmapResponse(BaseModel):
+    """Ответ с роадмапом"""
+    roadmap: str = Field(..., description="Текст роадмапа")
+    tasks: List[TaskItem] = Field(..., description="Список задач")
+    estimated_time: str = Field(..., description="Общее время выполнения")
+    success_metrics: List[str] = Field(..., description="Метрики успеха")
+    recommendations: List[str] = Field(..., description="Рекомендации")
+
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "roadmap": "РОАДМАП: Выучить английский за 6 месяцев...",
+                "tasks": [
+                    {
+                        "title": "Изучить базовую грамматику",
+                        "description": "Выучить времена Present Simple, Continuous, Perfect",
+                        "month": "1",
+                        "stage": "Основы",
+                        "metrics": "Тест на 90% правильных ответов",
+                        "deadline": "Конец недели 1",
+                        "priority": "high",
+                        "estimated_time": "1 неделя",
+                        "completed": False,
+                        "dependencies": []
+                    }
+                ],
+                "estimated_time": "6 месяцев",
+                "success_metrics": ["Сможет вести диалог", "Пройдет тест B1"],
+                "recommendations": ["Заниматься ежедневно", "Смотреть фильмы на английском"]
             }
         }
