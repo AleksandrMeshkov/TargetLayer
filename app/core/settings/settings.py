@@ -16,15 +16,10 @@ class Settings(BaseSettings):
     ACCESS_TOKEN_EXPIRE_MINUTES: int
     REFRESH_TOKEN_EXPIRE_HOURS: int 
 
-    REDIS_HOST: str = "localhost"
-    REDIS_PORT: int = 6379
-    REDIS_DB: int = 0
-    REDIS_PASSWORD: Optional[str] = None
+    
 
 
-    SUPABASE_URL: Optional[str] = None
-    SUPABASE_SERVICE_ROLE_KEY: Optional[str] = None
-    SUPABASE_ANON_KEY: Optional[str] = None
+    
 
     AI_PROVIDER: str = "ollama"
 
@@ -57,11 +52,5 @@ class Settings(BaseSettings):
             password=self.POSTGRES_PASSWORD,
             path=f"/{self.POSTGRES_DB}"
         ))
-
-    @property
-    def redis_url(self) -> str:
-        if self.REDIS_PASSWORD:
-            return f"redis://:{self.REDIS_PASSWORD}@{self.REDIS_HOST}:{self.REDIS_PORT}/{self.REDIS_DB}"
-        return f"redis://{self.REDIS_HOST}:{self.REDIS_PORT}/{self.REDIS_DB}"
 
 settings = Settings()

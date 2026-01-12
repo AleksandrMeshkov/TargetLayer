@@ -3,7 +3,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
 from app.services.email_service import EmailVerificationService
-from app.core.redis import get_redis
 from app.core.database.database import get_db
 from app.models.user import User
 from app.models.auth_identity import AuthIdentity
@@ -15,7 +14,6 @@ router = APIRouter(prefix="/verify", tags=["verification"])
 @router.post("/send-code")
 async def send_code(
     email: str = Query(..., description="Email адрес для отправки кода"),
-    redis = Depends(get_redis),
     db: AsyncSession = Depends(get_db)
 ):
     
@@ -30,7 +28,7 @@ async def send_code(
             detail="Email не найден в системе"
         )
     
-    email_service = EmailVerificationService(redis)
+    email_service = EmailVerificationService()
     if await email_service.is_verification_pending(email):
         ttl = await email_service.get_remaining_ttl(email)
         raise HTTPException(
@@ -57,12 +55,10 @@ async def send_code(
 async def confirm_email(
     email: str = Query(..., description="Email адрес"),
     code: str = Query(..., description="Код подтверждения из письма"),
-    db: AsyncSession = Depends(get_db),
-    redis = Depends(get_redis)
+    db: AsyncSession = Depends(get_db)
 ):
-   
-    email_service = EmailVerificationService(redis)
-    
+    email_service = EmailVerificationService()
+
     is_valid = await email_service.verify_code(email, code)
     
     if not is_valid:
