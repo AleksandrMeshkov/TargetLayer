@@ -4,7 +4,6 @@ from datetime import datetime
 
 
 class ChatMessage(BaseModel):
-    """Модель сообщения в чате"""
     role: str = Field(..., description="Роль: 'user', 'assistant' или 'system'")
     content: str = Field(..., description="Содержание сообщения", min_length=1, max_length=10000)
 
@@ -18,7 +17,6 @@ class ChatMessage(BaseModel):
 
 
 class AIChatRequest(BaseModel):
-    """Запрос к AI для обработки"""
     message: str = Field(..., description="Сообщение пользователя", min_length=1, max_length=10000)
     context: Optional[List[ChatMessage]] = Field(
         default=None, 
@@ -181,7 +179,6 @@ class RoadmapRequest(BaseModel):
 
 
 class TaskItem(BaseModel):
-    """Модель задачи"""
     title: str = Field(..., description="Название задачи")
     description: str = Field(..., description="Описание задачи")
     month: Optional[str] = Field(None, description="Месяц/этап")
@@ -195,7 +192,6 @@ class TaskItem(BaseModel):
 
 
 class RoadmapResponse(BaseModel):
-    """Ответ с роадмапом"""
     roadmap: str = Field(..., description="Текст роадмапа")
     tasks: List[TaskItem] = Field(..., description="Список задач")
     estimated_time: str = Field(..., description="Общее время выполнения")

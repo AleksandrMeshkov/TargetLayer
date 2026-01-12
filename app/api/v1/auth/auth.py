@@ -16,7 +16,6 @@ async def register(user: UserRegister, response: Response, db: AsyncSession = De
             user.email, user.password, user.username, user.name, user.surname, user.patronymic
         )
         tokens = await auth_service.create_tokens(user_activity_id)
-        # set refresh token in HttpOnly cookie, return access token in body
         refresh = tokens.get("refresh_token")
         if refresh:
             max_age = settings.REFRESH_TOKEN_EXPIRE_HOURS * 3600
@@ -60,7 +59,6 @@ async def refresh(response: Response, refresh_token: str | None = Cookie(None), 
     tokens = await auth_service.refresh_tokens(refresh_token)
     if not tokens:
         raise HTTPException(status_code=401, detail="Invalid refresh token")
-    # rotate refresh token in cookie
     refresh = tokens.get("refresh_token")
     if refresh:
         max_age = settings.REFRESH_TOKEN_EXPIRE_HOURS * 3600

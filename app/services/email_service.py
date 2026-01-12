@@ -6,7 +6,6 @@ from app.core.settings.settings import settings
 
 
 class _LocalInMemoryStore:
-	"""Minimal async-compatible in-memory store used when Redis is removed."""
 
 	def __init__(self):
 		self._store: Dict[str, Tuple[bytes, Optional[float]]] = {}
@@ -56,7 +55,6 @@ class _LocalInMemoryStore:
 
 class EmailVerificationService:
 	def __init__(self, redis: Optional[Any] = None):
-		# Use provided client or local in-memory store
 		self.redis = redis if redis is not None else _LocalInMemoryStore()
 		self.timeout = 15.0
 		self.code_ttl = 300
@@ -73,8 +71,6 @@ class EmailVerificationService:
 
 		await self.redis.setex(f"verify_code:{email}", self.code_ttl, code)
 
-		# Email sending removed — return the generated code so caller can handle
-		# delivery externally or for testing.
 		return code
 
 	async def verify_code(self, email: str, code: str) -> bool:
@@ -86,5 +82,3 @@ class EmailVerificationService:
 				await self.redis.delete(f"verify_code:{email}")
 				return True
 		return False
-
-	# Email sending and Supabase signup removed from this service.

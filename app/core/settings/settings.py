@@ -16,11 +16,6 @@ class Settings(BaseSettings):
     ACCESS_TOKEN_EXPIRE_MINUTES: int
     REFRESH_TOKEN_EXPIRE_HOURS: int 
 
-    
-
-
-    
-
     AI_PROVIDER: str = "ollama"
 
     OLLAMA_BASE_URL: str = "http://localhost:11434"

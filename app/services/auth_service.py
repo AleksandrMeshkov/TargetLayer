@@ -20,17 +20,14 @@ class AuthService:
 	async def register_email(
 		self, email: str, password: str, username: str, name: str, surname: str, patronymic: str | None = None
 	) -> int:
-		# Проверка существующего email
 		q = await self.db.execute(select(AuthIdentity).where(AuthIdentity.email == email))
 		existing = q.scalars().first()
 		if existing:
 			raise ValueError("Email already registered")
 
-		# Создаем записи в нужных таблицах: AuthIdentity, User, Message, Chat, ChatMessage
 		auth = AuthIdentity(email=email, password=hash_password(password))
 		user = User(name=name, surname=surname, patronymic=patronymic)
 
-		# создаём служебные записи для Message и Chat, чтобы ChatMessage не нарушал NOT NULL
 		message = Message(content=f"Welcome message for {email}")
 		chat = Chat()
 		chat_msg = ChatMessage(message=message, chat=chat)
@@ -38,7 +35,6 @@ class AuthService:
 		self.db.add_all([auth, user, message, chat, chat_msg])
 		await self.db.flush()
 
-		# Создаем запись UserActivity, связывая созданные записи
 		user_activity = UserActivity(
 			auth_identity=auth,
 			user=user,
@@ -59,7 +55,6 @@ class AuthService:
 		if not verify_password(password, auth.password or ""):
 			return None
 
-		# находим UserActivity для этой личности
 		q2 = await self.db.execute(select(UserActivity).where(UserActivity.auth_identities_id == auth.auth_identities_id))
 		ua = q2.scalars().first()
 		if not ua:
@@ -84,7 +79,6 @@ class AuthService:
 		except Exception:
 			return None
 
-		# Опционально: можно дополнительно проверить, что такой user_activity существует
 		q = await self.db.execute(select(UserActivity).where(UserActivity.user_activity_id == user_activity_id))
 		ua = q.scalars().first()
 		if not ua:

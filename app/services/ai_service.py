@@ -7,16 +7,11 @@ from datetime import datetime
 
 from app.core.settings.settings import settings
 from app.core.ai.ai_config import (
-    SYSTEM_PROMPT_CHAT,
-    SYSTEM_PROMPT_GOAL_DECOMPOSITION,
-    SYSTEM_PROMPT_TASK_GENERATION,
-    SYSTEM_PROMPT_ANALYSIS,
-    SYSTEM_PROMPT_ROADMAP,
+    SYSTEM_PROMPT_MAIN,
     OLLAMA_CONNECTION_TIMEOUT,
     ERRORS,
 )
 from app.schemas.ai_schemas import ChatMessage
-from app.core.ai.ai_helpers import response_cache
 
 logger = logging.getLogger(__name__)
 
@@ -67,16 +62,7 @@ class AIService:
         try:
             temp = temperature if temperature is not None else self.default_temperature
             tokens = max_tokens if max_tokens is not None else self.default_max_tokens
-            sys_prompt = system_prompt or SYSTEM_PROMPT_CHAT
-
-            cache_data = f"{message}_{sys_prompt}_{temp}_{tokens}"
-            cache_key = hashlib.md5(cache_data.encode()).hexdigest()
-
-            cached_res = response_cache.get(cache_key)
-            if cached_res:
-                logger.info("Ответ взят из кэша")
-                cached_res["cached"] = True
-                return cached_res
+            sys_prompt = system_prompt or SYSTEM_PROMPT_MAIN
 
             messages = self._prepare_messages(message, context, sys_prompt)
             start_time = time.time()
@@ -116,8 +102,6 @@ class AIService:
                 "timestamp": datetime.now().isoformat()
             }
 
-            response_cache.set(cache_key, output)
-
             return output
 
         except httpx.TimeoutException:
@@ -134,7 +118,7 @@ class AIService:
             message=prompt,
             temperature=0.5,
             max_tokens=2048,
-            system_prompt=SYSTEM_PROMPT_GOAL_DECOMPOSITION
+            system_prompt=SYSTEM_PROMPT_MAIN
         )
 
     async def generate_tasks(self, project_description: str, priority_level: str = "medium") -> Dict:
@@ -142,7 +126,7 @@ class AIService:
             message=project_description,
             temperature=0.6,
             max_tokens=2048,
-            system_prompt=SYSTEM_PROMPT_TASK_GENERATION
+            system_prompt=SYSTEM_PROMPT_MAIN
         )
 
     async def analyze(self, content: str, analysis_type: str = "general") -> Dict:
@@ -150,7 +134,7 @@ class AIService:
             message=content,
             temperature=0.3,
             max_tokens=2048,
-            system_prompt=SYSTEM_PROMPT_ANALYSIS
+            system_prompt=SYSTEM_PROMPT_MAIN
         )
 
     async def generate_roadmap(self, goal: str, timeframe: str, current_level: Optional[str] = None, available_time: Optional[str] = None, preferences: Optional[List[str]] = None) -> Dict:
@@ -169,7 +153,7 @@ class AIService:
                 message=full_prompt,
                 temperature=0.3,
                 max_tokens=3000,
-                system_prompt=SYSTEM_PROMPT_ROADMAP
+                system_prompt=SYSTEM_PROMPT_MAIN
             )
 
             if result.get("error"):
