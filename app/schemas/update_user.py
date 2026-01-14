@@ -15,3 +15,18 @@ class UserAvatarSchema(BaseModel):
         description="URL аватара пользователя"
     )
 
+class UserPublicSchema(BaseModel):
+    user_id: int
+    name: str
+    surname: str
+    patronymic: Optional[str] = None
+    avatar_url: Optional[str] = None
+    created_at: datetime
+    updated_at: datetime
+
+class UserUpdateSchema(BaseModel):
+    name: Optional[str] = Field(None, min_length=1, max_length=100)
+    surname: Optional[str] = Field(None, min_length=1, max_length=100)
+    patronymic: Optional[str] = Field(None, max_length=100)
+    avatar_url: Optional[str] = Field(None, max_length=255)
+    
