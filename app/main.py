@@ -5,7 +5,7 @@ from app.api.v1.ai import ai_routes
 
 app = FastAPI(
     title="TargetLayer API",
-    description="Сервис декомпозиции целей с ИИ и авторизацией",
+    description="Сервис декомпозиции целей с ИИ",
     version="0.1.0"
 )
 
