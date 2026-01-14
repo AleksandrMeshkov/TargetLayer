@@ -7,3 +7,4 @@ from .chat_message import ChatMessage
 from .user_activity import UserActivity
 from .goal import Goal
 from .task import Task
+from .password_recovery import PasswordRecovery

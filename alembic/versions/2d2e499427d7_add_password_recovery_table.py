@@ -1,8 +1,8 @@
-"""add is_verified to auth_identities
+"""add password_recovery table
 
-Revision ID: 9cbeee63e728
+Revision ID: 2d2e499427d7
 Revises: 
-Create Date: 2025-12-23 00:24:04.790147
+Create Date: 2026-01-14 21:09:50.383049
 
 """
 from typing import Sequence, Union
@@ -12,7 +12,7 @@ import sqlalchemy as sa
 
 
 # revision identifiers, used by Alembic.
-revision: str = '9cbeee63e728'
+revision: str = '2d2e499427d7'
 down_revision: Union[str, Sequence[str], None] = None
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
@@ -60,6 +60,18 @@ def upgrade() -> None:
     sa.ForeignKeyConstraint(['message_id'], ['messages.messages_id'], ),
     sa.PrimaryKeyConstraint('chat_messages_id')
     )
+    op.create_table('password_recovers',
+    sa.Column('id', sa.Integer(), nullable=False),
+    sa.Column('auth_identities_id', sa.Integer(), nullable=False),
+    sa.Column('email', sa.String(length=100), nullable=False),
+    sa.Column('token', sa.String(length=255), nullable=False),
+    sa.Column('is_used', sa.Boolean(), nullable=False),
+    sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
+    sa.Column('expires_at', sa.DateTime(timezone=True), nullable=True),
+    sa.ForeignKeyConstraint(['auth_identities_id'], ['auth_identities.auth_identities_id'], ondelete='CASCADE'),
+    sa.PrimaryKeyConstraint('id'),
+    sa.UniqueConstraint('token')
+    )
     op.create_table('user_activity',
     sa.Column('user_activity_id', sa.Integer(), nullable=False),
     sa.Column('auth_identities_id', sa.Integer(), nullable=False),
@@ -100,6 +112,7 @@ def downgrade() -> None:
     op.drop_table('tasks')
     op.drop_table('goals')
     op.drop_table('user_activity')
+    op.drop_table('password_recovers')
     op.drop_table('chat_messages')
     op.drop_table('users')
     op.drop_table('messages')
