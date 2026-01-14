@@ -3,7 +3,8 @@ from fastapi.openapi.utils import get_openapi
 from app.api.v1.auth import auth
 from app.api.v1.verify import verify
 from app.api.v1.ai import ai_routes
-from app.api.v1.user_settings import user_settings
+from app.api.v1.user_settings import user_settings, update_password
+
 
 app = FastAPI(
     title="TargetLayer API",
@@ -40,6 +41,7 @@ app.include_router(auth.router)
 app.include_router(verify.router)
 app.include_router(ai_routes.router)
 app.include_router(user_settings.router)
+app.include_router(update_password.router)
 
 @app.get("/", tags=["Root"])
 async def root():
