@@ -24,9 +24,5 @@ class UserPublicSchema(BaseModel):
     created_at: datetime
     updated_at: datetime
 
-class UserUpdateSchema(BaseModel):
-    name: Optional[str] = Field(None, min_length=1, max_length=100)
-    surname: Optional[str] = Field(None, min_length=1, max_length=100)
-    patronymic: Optional[str] = Field(None, max_length=100)
-    avatar_url: Optional[str] = Field(None, max_length=255)
+
     

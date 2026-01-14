@@ -1,8 +1,8 @@
 from typing import Optional
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, update
+from sqlalchemy import select
 from app.models.user import User
-from app.schemas.update_user import UserNameSchema
+from app.schemas.update_user import UserNameSchema, UserAvatarSchema
 
 
 class UserService:
@@ -24,6 +24,25 @@ class UserService:
         user.name = name_data.name
         user.surname = name_data.surname
         user.patronymic = name_data.patronymic
+        
+        await self.db.commit()
+        await self.db.refresh(user)
+        
+        return user
+
+    async def update_user_avatar(
+        self,
+        user_id: int,
+        avatar_data: UserAvatarSchema
+    ) -> User:
+        stmt = select(User).where(User.user_id == user_id)
+        result = await self.db.execute(stmt)
+        user = result.scalars().first()
+        
+        if not user:
+            raise ValueError("User not found")
+        
+        user.avatar_url = avatar_data.avatar_url
         
         await self.db.commit()
         await self.db.refresh(user)
