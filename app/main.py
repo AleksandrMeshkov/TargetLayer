@@ -1,6 +1,6 @@
 from fastapi import FastAPI
 from fastapi.openapi.utils import get_openapi
-from app.api.v1.auth import auth
+from app.api.v1.auth import auth, password_recovery
 from app.api.v1.verify import verify
 from app.api.v1.ai import ai_routes
 from app.api.v1.user_settings import user_settings, update_password
@@ -38,6 +38,7 @@ def custom_openapi():
 app.openapi = custom_openapi
 
 app.include_router(auth.router)
+app.include_router(password_recovery.router)
 app.include_router(verify.router)
 app.include_router(ai_routes.router)
 app.include_router(user_settings.router)

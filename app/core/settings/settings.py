@@ -11,6 +11,9 @@ class Settings(BaseSettings):
     POSTGRES_DB: str
     API_BASE_PORT: int 
 
+    EMAIL_ADDRESS: str
+    EMAIL_PASSWORD: str
+
     SECRET_KEY: str
     ALGORITHM: str 
     ACCESS_TOKEN_EXPIRE_MINUTES: int
