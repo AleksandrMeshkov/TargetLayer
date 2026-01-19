@@ -1,259 +1,93 @@
 import httpx
 import logging
+from typing import Optional, Dict
+import os
+import asyncio
 import time
-import hashlib
-from typing import Optional, List, Dict
-from datetime import datetime
+import json
+import re
+import unicodedata
 
-from app.core.settings.settings import settings
-from app.core.ai.ai_config import (
-    SYSTEM_PROMPT_MAIN,
-    OLLAMA_CONNECTION_TIMEOUT,
-    ERRORS,
-)
-from app.schemas.ai_schemas import ChatMessage
+from app.core.ai.ai_config import SYSTEM_PROMPT, AI_TEMPERATURE, AI_MAX_TOKENS
 
 logger = logging.getLogger(__name__)
 
 
 class AIService:
-
     def __init__(self):
-        self.base_url = settings.OLLAMA_BASE_URL
-        self._model_name = settings.AI_MODEL_NAME
-        self.default_temperature = settings.AI_TEMPERATURE
-        self.default_max_tokens = settings.AI_MAX_TOKENS
-
-        timeout_value = settings.OLLAMA_TIMEOUT
-        self.timeout = httpx.Timeout(
-            timeout=timeout_value,
-            connect=OLLAMA_CONNECTION_TIMEOUT,
-            read=timeout_value,
-        )
-
-    @property
-    def model_name(self) -> str:
-        return self._model_name
+        self.base_url = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
+        self.model_name = os.getenv("AI_MODEL_NAME", "phi3:mini")
+        timeout_val = int(os.getenv("OLLAMA_TIMEOUT", "300"))
+        self.timeout = httpx.Timeout(timeout=timeout_val)
+        self._model_cache: Optional[bool] = None
+        self._cache_time: float = 0.0
 
     async def check_model_availability(self) -> bool:
-        try:
-            async with httpx.AsyncClient(timeout=self.timeout) as client:
-                response = await client.get(f"{self.base_url}/api/tags")
-                if response.status_code == 200:
-                    data = response.json()
-                    models = [m.get("name") for m in data.get("models", [])]
-                    is_available = self._model_name in models
-                    if not is_available:
-                        logger.warning(f"Модель {self._model_name} не найдена. Доступны: {models}")
-                    return is_available
+        """Проверка доступности модели (синхронный httpx в фоне + кэш 5s)"""
+        now = time.time()
+        if self._model_cache is not None and (now - self._cache_time) < 5:
+            return self._model_cache
+
+        def _check() -> bool:
+            try:
+                with httpx.Client(timeout=5.0) as client:
+                    resp = client.get(f"{self.base_url}/api/tags")
+                    if resp.status_code != 200:
+                        return False
+                    models = [m.get("name") for m in resp.json().get("models", [])]
+                    return self.model_name in models
+            except Exception as e:
+                logger.debug(f"sync check error: {e}")
                 return False
-        except Exception as e:
-            logger.error(f"Ошибка проверки доступности модели: {e}")
-            return False
 
-    async def chat(
-        self,
-        message: str,
-        context: Optional[List[ChatMessage]] = None,
-        temperature: Optional[float] = None,
-        max_tokens: Optional[int] = None,
-        system_prompt: Optional[str] = None,
-    ) -> Dict:
-        try:
-            temp = temperature if temperature is not None else self.default_temperature
-            tokens = max_tokens if max_tokens is not None else self.default_max_tokens
-            sys_prompt = system_prompt or SYSTEM_PROMPT_MAIN
+        result = await asyncio.to_thread(_check)
+        self._model_cache = result
+        self._cache_time = now
+        if result:
+            logger.info(f"✅ Модель {self.model_name} доступна")
+        return result
 
-            messages = self._prepare_messages(message, context, sys_prompt)
-            start_time = time.time()
+    async def decompose_goal(self, goal: str, timeframe: Optional[str] = None) -> Dict:
+        """Разложить цель на подцели и действия (синхронный httpx в фоне)."""
+        # Ensure model present
+        available = await self.check_model_availability()
+        if not available:
+            return {"error": True, "message": "Model unavailable", "model": self.model_name}
 
-            async with httpx.AsyncClient(timeout=self.timeout) as client:
-                response = await client.post(
-                    f"{self.base_url}/api/chat",
-                    json={
-                        "model": self._model_name,
-                        "messages": messages,
-                        "temperature": temp,
-                        "stream": False,
-                        "options": {"num_predict": tokens},
-                    },
-                )
+        prompt = f"Цель: {goal}\nСрок: {timeframe if timeframe else 'не указан'}\n\nВерни ТОЛЬКО валидный JSON согласно системе. Никакого другого текста."
 
-            processing_time = time.time() - start_time
+        def _call() -> Dict:
+            try:
+                with httpx.Client(timeout=self.timeout) as client:
+                    response = client.post(
+                        f"{self.base_url}/api/chat",
+                        json={
+                            "model": self.model_name,
+                            "messages": [
+                                {"role": "system", "content": SYSTEM_PROMPT},
+                                {"role": "user", "content": prompt},
+                            ],
+                            "temperature": AI_TEMPERATURE,
+                            "stream": False,
+                            "options": {"num_predict": AI_MAX_TOKENS},
+                        },
+                    )
 
-            if response.status_code != 200:
-                logger.error(f"Ошибка AI API: {response.status_code}")
-                return {
-                    "error": True,
-                    "message": ERRORS.get("SERVER_ERROR", "Ошибка сервера"),
-                    "status_code": response.status_code,
-                }
+                if response.status_code != 200:
+                    logger.error(f"Ollama API error: {response.status_code}")
+                    return {"error": True, "message": "Ollama error", "status_code": response.status_code}
 
-            result = response.json()
-            ai_response_text = result.get("message", {}).get("content", "")
+                result = response.json()
+                ai_text = result.get("message", {}).get("content", "")
+                return {"error": False, "response": ai_text, "model": self.model_name}
 
-            output = {
-                "error": False,
-                "response": ai_response_text,
-                "tokens_used": result.get("eval_count", 0),
-                "processing_time": round(processing_time, 2),
-                "model": self._model_name,
-                "cached": False,
-                "timestamp": datetime.now().isoformat()
-            }
+            except Exception as e:
+                logger.error(f"decompose_goal HTTP error: {str(e)}")
+                return {"error": True, "message": str(e)}
 
-            return output
-
-        except httpx.TimeoutException:
-            return {"error": True, "message": ERRORS.get("TIMEOUT")}
-        except httpx.ConnectError:
-            return {"error": True, "message": ERRORS.get("CONNECTION_ERROR")}
-        except Exception as e:
-            logger.error(f"Непредвиденная ошибка AIService: {e}")
-            return {"error": True, "message": str(e)}
-
-    async def decompose_goal(self, goal: str, timeframe: Optional[str] = None, additional_info: Optional[str] = None) -> Dict:
-        prompt = f"Цель: {goal}. Таймфрейм: {timeframe if timeframe else 'не указан'}. {additional_info or ''}"
-        return await self.chat(
-            message=prompt,
-            temperature=0.5,
-            max_tokens=2048,
-            system_prompt=SYSTEM_PROMPT_MAIN
-        )
-
-    async def generate_tasks(self, project_description: str, priority_level: str = "medium") -> Dict:
-        return await self.chat(
-            message=project_description,
-            temperature=0.6,
-            max_tokens=2048,
-            system_prompt=SYSTEM_PROMPT_MAIN
-        )
-
-    async def analyze(self, content: str, analysis_type: str = "general") -> Dict:
-        return await self.chat(
-            message=content,
-            temperature=0.3,
-            max_tokens=2048,
-            system_prompt=SYSTEM_PROMPT_MAIN
-        )
-
-    async def generate_roadmap(self, goal: str, timeframe: str, current_level: Optional[str] = None, available_time: Optional[str] = None, preferences: Optional[List[str]] = None) -> Dict:
-        try:
-            prompt_parts = [f"ЦЕЛЬ: {goal}", f"СРОК: {timeframe}"]
-            if current_level:
-                prompt_parts.append(f"ТЕКУЩИЙ УРОВЕНЬ: {current_level}")
-            if available_time:
-                prompt_parts.append(f"ДОСТУПНОЕ ВРЕМЯ: {available_time}")
-            if preferences:
-                prompt_parts.append(f"ПРЕДПОЧТЕНИЯ: {', '.join(preferences)}")
-            prompt_parts.append("\nПожалуйста, создай детальный пошаговый роадмап с четкими задачами.")
-            full_prompt = "\n".join(prompt_parts)
-
-            result = await self.chat(
-                message=full_prompt,
-                temperature=0.3,
-                max_tokens=3000,
-                system_prompt=SYSTEM_PROMPT_MAIN
-            )
-
-            if result.get("error"):
-                return result
-
-            roadmap_text = result["response"]
-            tasks = self._extract_tasks_from_roadmap(roadmap_text)
-
-            return {
-                "error": False,
-                "roadmap": roadmap_text,
-                "tasks": tasks,
-                "structured_tasks": self._structure_tasks_for_db(tasks),
-                "tokens_used": result.get("tokens_used"),
-                "processing_time": result.get("processing_time"),
-                "model": self._model_name
-            }
-
-        except Exception as e:
-            logger.error(f"Ошибка генерации роадмапа: {e}")
-            return {"error": True, "message": str(e)}
-
-    def _extract_tasks_from_roadmap(self, roadmap_text: str) -> List[Dict]:
-        tasks = []
-        lines = roadmap_text.split('\n')
-
-        current_month = None
-        current_stage = None
-
-        for line in lines:
-            line = line.strip()
-
-            if line.startswith('### МЕСЯЦ'):
-                parts = line.split(':')
-                if len(parts) > 1:
-                    current_month = parts[0].replace('### МЕСЯЦ', '').strip()
-                    current_stage = parts[1].strip()
-
-            elif line and any(marker in line for marker in ['1.', '2.', '3.', '4.', '5.', '6.', '7.', '8.', '9.']):
-                task = {
-                    'month': current_month,
-                    'stage': current_stage,
-                    'task': line,
-                    'completed': False,
-                    'metrics': self._extract_metrics(line),
-                    'deadline': self._extract_deadline(line)
-                }
-                tasks.append(task)
-
-        return tasks
-
-    def _extract_metrics(self, task_text: str) -> str:
-        if '**Метрика:**' in task_text:
-            parts = task_text.split('**Метрика:**')
-            if len(parts) > 1:
-                return parts[1].split('-')[0].strip()
-        return ""
-
-    def _extract_deadline(self, task_text: str) -> str:
-        if '**Срок:**' in task_text:
-            parts = task_text.split('**Срок:**')
-            if len(parts) > 1:
-                return parts[1].split('-')[0].strip()
-        return ""
-
-    def _structure_tasks_for_db(self, tasks: List[Dict]) -> List[Dict]:
-        structured = []
-        for task in tasks:
-            structured.append({
-                'title': task['task'].split('. ')[1] if '. ' in task['task'] else task['task'],
-                'description': task['task'],
-                'month': task['month'],
-                'stage': task['stage'],
-                'metrics': task['metrics'],
-                'deadline': task['deadline'],
-                'priority': self._determine_priority(task['month']),
-                'estimated_time': '1 неделя',
-                'dependencies': []
-            })
-        return structured
-
-    def _determine_priority(self, month_str: str) -> str:
-        try:
-            month_num = int(''.join(filter(str.isdigit, month_str)))
-            if month_num <= 1:
-                return "high"
-            elif month_num <= 3:
-                return "medium"
-            else:
-                return "low"
-        except:
-            return "medium"
-
-    def _prepare_messages(self, message: str, context: Optional[List[ChatMessage]], system_prompt: str) -> List[Dict]:
-        messages = [{"role": "system", "content": system_prompt}]
-        if context:
-            for msg in context[-10:]:
-                messages.append({"role": msg.role, "content": msg.content})
-        messages.append({"role": "user", "content": message})
-        return messages
+        # Single call, skip JSON parsing for now — just return raw response
+        result = await asyncio.to_thread(_call)
+        return result
 
 
 ai_service = AIService()

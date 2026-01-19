@@ -20,18 +20,8 @@ class Settings(BaseSettings):
     REFRESH_TOKEN_EXPIRE_HOURS: int 
 
     AI_PROVIDER: str = "ollama"
-
     OLLAMA_BASE_URL: str = "http://localhost:11434"
-    OLLAMA_TIMEOUT: int = 120
-    AI_MODEL_NAME: str = "phi3:mini"
-
-    TINYLLAMA_MODEL_PATH: Optional[str] = None
-    TINYLLAMA_N_CTX: int = 2048
-
-    AI_MAX_TOKENS: int = 4096
-    AI_TEMPERATURE: float = 0.7
-    AI_CACHE_TTL: int = 3600
-    AI_ENABLED: bool = True
+    OLLAMA_TIMEOUT: int = 300
 
     model_config = ConfigDict(
         env_file=".env",
