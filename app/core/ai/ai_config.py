@@ -1,15 +1,25 @@
-"""
-Конфигурация AI для модели qwen2.5:3b
-"""
-
 import os
+from typing import Dict, Any
 
-# Основные настройки
 OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
 OLLAMA_TIMEOUT = int(os.getenv("OLLAMA_TIMEOUT", "30"))
 AI_MODEL_NAME = os.getenv("AI_MODEL", "qwen2.5:3b")
 
-# Оптимизированный промпт для qwen2.5:3b
+MAX_RETRIES = 3
+RETRY_DELAY = 1  
+
+def validate_config() -> Dict[str, Any]:
+    if OLLAMA_TIMEOUT < 10:
+        raise ValueError("OLLAMA_TIMEOUT должен быть >= 10 секунд")
+    if not OLLAMA_BASE_URL.startswith(("http://", "https://")):
+        raise ValueError("OLLAMA_BASE_URL должен начинаться с http:// или https://")
+    return {
+        "base_url": OLLAMA_BASE_URL,
+        "timeout": OLLAMA_TIMEOUT,
+        "model": AI_MODEL_NAME,
+        "max_retries": MAX_RETRIES
+    }
+
 SYSTEM_PROMPT = """Ты планировщик целей. Разбей цель на 3-4 этапа. ОТВЕТЬ ТОЛЬКО ЭТОТ JSON:
 
 {
@@ -55,9 +65,8 @@ SYSTEM_PROMPT = """Ты планировщик целей. Разбей цель
 ГЛАВНОЕ: Модель должна быть конкретной, точной, с цифрами и проверяемыми результатами.
 БЕЗ ТЕКСТА ДО/ПОСЛЕ JSON. ТОЛЬКО JSON."""
 
-# Конфигурация генерации
 GENERATION_CONFIG = {
     "temperature": 0.1,
-    "num_predict": 1200,  # Увеличить для полных ответов
+    "num_predict": 1000,  
     "repeat_penalty": 1.2,
 }

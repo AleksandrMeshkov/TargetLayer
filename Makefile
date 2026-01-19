@@ -1,13 +1,18 @@
 up:
 	docker-compose up -d
-	@docker exec targetlayer_ollama ollama pull phi3:mini 2>/dev/null
-	@echo "✅ Все запущено: http://localhost:8000"
+	@echo "✅ Контейнеры запущены: http://localhost:8000"
 
 down:
 	docker-compose down
 
 logs:
 	docker-compose logs -f
+
+logs-ollama:
+	docker-compose logs -f ollama
+
+logs-api:
+	docker-compose logs -f api
 
 health:
 	docker-compose ps
