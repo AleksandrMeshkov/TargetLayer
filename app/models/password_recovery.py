@@ -9,25 +9,10 @@ class PasswordRecovery(Base):
     __tablename__ = "password_recovers"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    auth_identities_id: Mapped[int] = mapped_column(
-        Integer, 
-        ForeignKey("auth_identities.auth_identities_id", ondelete="CASCADE"),
-        nullable=False
-    )
-    email: Mapped[str] = mapped_column(String(100), nullable=False)
+    user_id: Mapped[int] = mapped_column(Integer, ForeignKey("users.user_id", ondelete="CASCADE"),nullable=False)
     token: Mapped[str] = mapped_column(String(255), nullable=False, unique=True)
     is_used: Mapped[bool] = mapped_column(default=False)
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), 
-        server_default=func.now(),
-        nullable=False
-    )
-    expires_at: Mapped[Optional[datetime]] = mapped_column(
-        DateTime(timezone=True),
-        nullable=True
-    )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(),nullable=False)
+    expires_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
     
-    auth_identity: Mapped["AuthIdentity"] = relationship(
-        "AuthIdentity",
-        backref="password_recoveries"
-    )
+    user: Mapped["User"] = relationship("User", back_populates="password_recoveries")

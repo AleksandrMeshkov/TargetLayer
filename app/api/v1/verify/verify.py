@@ -5,7 +5,6 @@ from sqlalchemy import select
 from app.services.email_service import EmailVerificationService
 from app.core.database.database import get_db
 from app.models.user import User
-from app.models.auth_identity import AuthIdentity
 from app.models.user_activity import UserActivity
 
 router = APIRouter(prefix="/verify", tags=["verification"])
@@ -18,11 +17,11 @@ async def send_code(
 ):
     
     result = await db.execute(
-        select(AuthIdentity).where(AuthIdentity.email == email)
+        select(User).where(User.email == email)
     )
-    auth_identity = result.scalars().first()
+    user = result.scalars().first()
     
-    if not auth_identity:
+    if not user:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Email не найден в системе"
@@ -68,41 +67,17 @@ async def confirm_email(
         )
     
     result = await db.execute(
-        select(AuthIdentity).where(AuthIdentity.email == email)
+        select(User).where(User.email == email)
     )
-    auth_identity = result.scalars().first()
+    user = result.scalars().first()
     
-    if not auth_identity:
+    if not user:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Пользователь не найден"
         )
     
     try:
-        result = await db.execute(
-            select(UserActivity)
-            .where(UserActivity.auth_identities_id == auth_identity.auth_identities_id)
-            .limit(1)
-        )
-        user_activity = result.scalars().first()
-        
-        if not user_activity or not user_activity.user_id:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Запись пользователя не найдена"
-            )
-        
-        result = await db.execute(
-            select(User).where(User.user_id == user_activity.user_id)
-        )
-        user = result.scalars().first()
-        
-        if not user:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Пользователь не найден"
-            )
-        
         user.email_verified = True
         db.add(user)
         await db.commit()

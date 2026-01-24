@@ -1,6 +1,5 @@
 from .base import Base
 from .user import User
-from .auth_identity import AuthIdentity
 from .chat import Chat
 from .message import Message
 from .chat_message import ChatMessage
@@ -8,3 +7,4 @@ from .user_activity import UserActivity
 from .goal import Goal
 from .task import Task
 from .password_recovery import PasswordRecovery
+from .roadmap import Roadmap

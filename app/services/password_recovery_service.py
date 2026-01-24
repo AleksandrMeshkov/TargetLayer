@@ -6,7 +6,7 @@ from sqlalchemy import select
 from fastapi import HTTPException
 
 from app.models.password_recovery import PasswordRecovery
-from app.models.auth_identity import AuthIdentity
+from app.models.user import User
 from app.core.security.password import hash_password
 from app.core.email.message_sender import MessageSender
 
@@ -27,8 +27,8 @@ class PasswordRecoveryService:
     
     async def create_recovery(self, email: str) -> PasswordRecovery:
         
-        auth_identity = await self._get_auth_identity_by_email(email)
-        if not auth_identity:
+        user = await self._get_user_by_email(email)
+        if not user:
             raise HTTPException(status_code=400, detail="Пользователь с таким email не найден")
         
         token = self._generate_recovery_token()
@@ -37,8 +37,7 @@ class PasswordRecoveryService:
         
         try:
             recovery = PasswordRecovery(
-                auth_identities_id=auth_identity.auth_identities_id,
-                email=email,
+                user_id=user.user_id,
                 token=token,
                 expires_at=expires_at
             )
@@ -68,15 +67,15 @@ class PasswordRecoveryService:
             raise HTTPException(status_code=400, detail="Токен восстановления истек. Запросите новый")
         
         try:
-            auth_identity = await self._get_auth_identity_by_id(recovery.auth_identities_id)
-            if not auth_identity:
-                raise HTTPException(status_code=400, detail="Запись аутентификации не найдена")
+            user = await self._get_user_by_id(recovery.user_id)
+            if not user:
+                raise HTTPException(status_code=400, detail="Пользователь не найден")
             
-            auth_identity.password = hash_password(new_password)
+            user.password = hash_password(new_password)
             
             recovery.is_used = True
             
-            self._session.add(auth_identity)
+            self._session.add(user)
             self._session.add(recovery)
             await self._session.commit()
             
@@ -88,16 +87,20 @@ class PasswordRecoveryService:
             await self._session.rollback()
             raise HTTPException(status_code=400, detail=f"Ошибка при восстановлении пароля: {str(e)}")
     
-    async def _get_auth_identity_by_email(self, email: str) -> AuthIdentity | None:
-        stmt = select(AuthIdentity).where(AuthIdentity.email == email)
+    async def _get_user_by_email(self, email: str) -> User | None:
+        stmt = select(User).where(User.email == email)
         result = await self._session.execute(stmt)
         return result.scalars().first()
     
-    async def _get_auth_identity_by_id(self, auth_id: int) -> AuthIdentity | None:
-        stmt = select(AuthIdentity).where(AuthIdentity.auth_identities_id == auth_id)
+    async def _get_user_by_id(self, user_id: int) -> User | None:
+        stmt = select(User).where(User.user_id == user_id)
         result = await self._session.execute(stmt)
         return result.scalars().first()
     
+    async def _get_recovery_by_token(self, token: str) -> PasswordRecovery | None:
+        stmt = select(PasswordRecovery).where(PasswordRecovery.token == token)
+        result = await self._session.execute(stmt)
+        return result.scalars().first()
     async def _get_recovery_by_token(self, token: str) -> PasswordRecovery | None:
         stmt = select(PasswordRecovery).where(PasswordRecovery.token == token)
         result = await self._session.execute(stmt)
