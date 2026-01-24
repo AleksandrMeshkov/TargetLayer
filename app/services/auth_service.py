@@ -27,7 +27,6 @@ class AuthService:
 		if existing:
 			raise ValueError("Email already registered")
 
-		# Step 1: Create user
 		user = User(
 			name=name, 
 			surname=surname, 
@@ -38,13 +37,11 @@ class AuthService:
 		self.db.add(user)
 		await self.db.flush()
 
-		# Step 2: Create default goal and task
 		goal = Goal(title="Default Goal", description="Default goal for new user")
 		task = Task(title="Default Task", description="Default task for new user")
 		self.db.add_all([goal, task])
 		await self.db.flush()
 
-		# Step 3: Create roadmap
 		roadmap = Roadmap(
 			goals_id=goal.goals_id,
 			tasks_id=task.task_id,
@@ -53,7 +50,6 @@ class AuthService:
 		self.db.add(roadmap)
 		await self.db.flush()
 
-		# Step 4: Create user_activity with user and roadmap
 		user_activity = UserActivity(
 			user_id=user.user_id,
 			roadmap_id=roadmap.roadmap_id,
@@ -61,13 +57,11 @@ class AuthService:
 		self.db.add(user_activity)
 		await self.db.flush()
 
-		# Step 5: Create chat and message (now that we have user_activity)
 		message = Message(content=f"Welcome message for {email}")
 		chat = Chat()
 		self.db.add_all([message, chat])
 		await self.db.flush()
 
-		# Step 6: Create chat_message with user_activity_id
 		chat_msg = ChatMessage(
 			message_id=message.messages_id,
 			chat_id=chat.chat_id,
