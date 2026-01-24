@@ -6,7 +6,6 @@ from app.api.v1.ai import ai_routes
 from app.api.v1.user_settings import user_settings, update_password
 import logging
 
-# Configure logging
 logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger("app")
 
