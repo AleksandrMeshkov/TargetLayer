@@ -1,19 +1,17 @@
 import httpx
-import json
 import logging
 import asyncio
-from typing import Optional, Dict, Any
+from typing import Optional
+from datetime import datetime
 
 from app.core.ai.ai_config import (
-    SYSTEM_PROMPT, OLLAMA_BASE_URL, OLLAMA_TIMEOUT, 
+    SYSTEM_PROMPT, OLLAMA_BASE_URL, OLLAMA_TIMEOUT,
     AI_MODEL_NAME, GENERATION_CONFIG, MAX_RETRIES, RETRY_DELAY
 )
+from app.schemas.ai_schemas import AIResponse, GoalDecompositionRequest
+from app.services.json_parser import JSONParser
 
 logger = logging.getLogger(__name__)
-
-
-class AIServiceError(Exception):
-    pass
 
 
 class AIService:
@@ -25,169 +23,156 @@ class AIService:
         self.max_retries = MAX_RETRIES
         self.retry_delay = RETRY_DELAY
         self.client = httpx.AsyncClient(timeout=self.timeout)
-        logger.info(f"AIService инициализирован: модель={self.model_name}, url={self.base_url}")
-
-    async def check_model_availability(self) -> bool:
-       
+        self.parser = JSONParser()
+        logger.info(f"AIService: {self.model_name}")
+    
+    async def check_health(self) -> bool:
         try:
-            response = await self.client.get(
-                f"{self.base_url}/api/tags",
-                timeout=5.0
-            )
+            response = await self.client.get(f"{self.base_url}/api/tags", timeout=5.0)
             if response.status_code == 200:
                 models = response.json().get("models", [])
-                model_names = [m.get("name") for m in models]
-                is_available = self.model_name in model_names
-                logger.debug(f"Модель {self.model_name} доступна: {is_available}")
-                return is_available
-            else:
-                logger.warning(f"Ollama вернул статус {response.status_code}")
-                return False
-        except httpx.TimeoutException:
-            logger.error("Таймаут при проверке доступности модели")
+                return any(m.get("name") == self.model_name for m in models)
             return False
         except Exception as e:
-            logger.error(f"Ошибка проверки модели: {e}", exc_info=True)
+            logger.error(f"Health check failed: {e}")
             return False
-
-    def _extract_json_from_text(self, text: str) -> str:
-       
-        if "```json" in text:
-            return text.split("```json")[1].split("```")[0].strip()
-        elif "```" in text:
-            return text.split("```")[1].split("```")[0].strip()
-        return text.strip()
-
-    async def decompose_goal(self, goal: str, timeframe: Optional[str] = None) -> Dict[str, Any]:
+    
+    async def decompose_goal(self, request: GoalDecompositionRequest) -> dict:
+        start_time = datetime.now()
         
-        prompt = f"Цель: {goal}"
-        if timeframe:
-            prompt += f"\nСрок: {timeframe}"
-        
-        payload = {
-            "model": self.model_name,
-            "messages": [
-                {"role": "system", "content": SYSTEM_PROMPT},
-                {"role": "user", "content": prompt}
-            ],
-            "stream": False,
-            "options": GENERATION_CONFIG,
-        }
+        prompt = f"""Цель: {request.goal}
+Срок: {request.timeframe_months} месяцев
+{f'Уровень: {request.current_level}' if request.current_level else ''}
+Часов в неделю: {request.weekly_hours}
+"""
         
         for attempt in range(self.max_retries):
             try:
-                logger.debug(f"Попытка {attempt + 1}/{self.max_retries} разложить цель")
-                
                 response = await self.client.post(
                     f"{self.base_url}/api/chat",
-                    json=payload,
+                    json={
+                        "model": self.model_name,
+                        "messages": [
+                            {"role": "system", "content": SYSTEM_PROMPT},
+                            {"role": "user", "content": prompt}
+                        ],
+                        "stream": False,
+                        "options": GENERATION_CONFIG,
+                    },
                     timeout=self.timeout
                 )
                 
                 if response.status_code != 200:
-                    if attempt < self.max_retries - 1:
-                        logger.warning(f"Статус {response.status_code}, повтор через {self.retry_delay}с")
-                        await asyncio.sleep(self.retry_delay)
-                        continue
-                    return {
-                        "error": True, 
-                        "message": f"AI вернул статус {response.status_code}",
-                        "tokens_used": None,
-                        "processing_time": None
-                    }
+                    logger.warning(f"AI returned {response.status_code}")
+                    await asyncio.sleep(self.retry_delay)
+                    continue
                 
                 result = response.json()
                 ai_text = result.get("message", {}).get("content", "").strip()
-                
-                tokens_used = result.get("eval_count", None)  
-                total_duration = result.get("total_duration", 0) 
-                processing_time = total_duration / 1e9 if total_duration else None  
+                tokens = result.get("eval_count")
                 
                 if not ai_text:
-                    return {
-                        "error": True, 
-                        "message": "Пустой ответ от AI",
-                        "tokens_used": tokens_used,
-                        "processing_time": processing_time
-                    }
+                    raise ValueError("Empty response from AI")
                 
                 try:
-                    cleaned_text = self._extract_json_from_text(ai_text)
-                    parsed_json = json.loads(cleaned_text)
+                    parsed = self.parser.parse(ai_text)
                     
-                    logger.info(f"Цель успешно разложена на этапы ({tokens_used} токенов, {processing_time:.2f}с)")
+                    parsed = self._correct_response(parsed, request.timeframe_months)
+                    
+                    ai_response = AIResponse(**parsed)
+                    
+                    processing_time = (datetime.now() - start_time).total_seconds()
+                    logger.info(f"Goal decomposed: {len(ai_response.tasks)} tasks")
+                    
                     return {
-                        "error": False,
-                        "response": json.dumps(parsed_json, ensure_ascii=False),
-                        "json": parsed_json,
-                        "model": self.model_name,
-                        "tokens_used": tokens_used,
-                        "processing_time": processing_time,
+                        "success": True,
+                        "data": ai_response,
+                        "tokens": tokens,
+                        "time": processing_time,
+                        "model": self.model_name
                     }
+                except Exception as e:
+                    logger.error(f"Validation error: {e}")
+                    if attempt < self.max_retries - 1:
+                        await asyncio.sleep(self.retry_delay)
+                        continue
                     
-                except json.JSONDecodeError as je:
-                    logger.warning(f"Ошибка парсинга JSON: {je}, ответ: {ai_text[:100]}")
                     return {
-                        "error": False,
-                        "response": ai_text,
-                        "json": None,
-                        "model": self.model_name,
-                        "tokens_used": tokens_used,
-                        "processing_time": processing_time,
+                        "success": False,
+                        "error": str(e),
+                        "time": (datetime.now() - start_time).total_seconds()
                     }
                     
             except httpx.TimeoutException:
+                logger.warning("Timeout")
                 if attempt < self.max_retries - 1:
-                    logger.warning(f"Таймаут, повтор через {self.retry_delay}с")
                     await asyncio.sleep(self.retry_delay)
                     continue
+                    
                 return {
-                    "error": True, 
-                    "message": "Таймаут запроса к AI",
-                    "tokens_used": None,
-                    "processing_time": None
+                    "success": False,
+                    "error": "Timeout",
+                    "time": (datetime.now() - start_time).total_seconds()
                 }
             except Exception as e:
+                logger.error(f"Error: {e}")
                 if attempt < self.max_retries - 1:
-                    logger.warning(f"Ошибка: {e}, повтор через {self.retry_delay}с")
                     await asyncio.sleep(self.retry_delay)
                     continue
-                logger.error(f"Ошибка AIService после {self.max_retries} попыток: {e}", exc_info=True)
+                    
                 return {
-                    "error": True, 
-                    "message": str(e),
-                    "tokens_used": None,
-                    "processing_time": None
+                    "success": False,
+                    "error": str(e),
+                    "time": (datetime.now() - start_time).total_seconds()
                 }
         
         return {
-            "error": True, 
-            "message": "Все попытки исчерпаны",
-            "tokens_used": None,
-            "processing_time": None
+            "success": False,
+            "error": "All retries exhausted",
+            "time": (datetime.now() - start_time).total_seconds()
         }
-
-    async def close(self) -> None:
+    
+    def _correct_response(self, data: dict, timeframe_months: int) -> dict:
+        max_days = timeframe_months * 30
+        
+        if "tasks" in data:
+            for task in data["tasks"]:
+                if "estimated_duration_days" in task:
+                    if task["estimated_duration_days"] <= 0:
+                        task["estimated_duration_days"] = max(1, max_days // max(len(data["tasks"]), 1))
+                    task["estimated_duration_days"] = min(task["estimated_duration_days"], max_days)
+                
+                if "deadline_offset_days" in task:
+                    if task["deadline_offset_days"] < 0:
+                        task["deadline_offset_days"] = max(1, 30)
+                    task["deadline_offset_days"] = min(task["deadline_offset_days"], max_days)
+                
+                if "priority" not in task or task["priority"] not in ["high", "medium", "low"]:
+                    task["priority"] = "medium"
+                
+                if "resources" not in task:
+                    task["resources"] = []
+                elif not isinstance(task["resources"], list):
+                    task["resources"] = []
+        
+        return data
+    
+    async def close(self):
         await self.client.aclose()
-        logger.info("AIService закрыт")
 
 
 _ai_service: Optional[AIService] = None
 
 
-def get_ai_service_instance() -> AIService:
+async def get_ai_service() -> AIService:
     global _ai_service
     if _ai_service is None:
         _ai_service = AIService()
     return _ai_service
 
 
-async def get_ai_service() -> AIService:
-    return get_ai_service_instance()
-
-
-async def close_ai_service() -> None:
+async def close_ai_service():
     global _ai_service
-    if _ai_service is not None:
+    if _ai_service:
         await _ai_service.close()
         _ai_service = None

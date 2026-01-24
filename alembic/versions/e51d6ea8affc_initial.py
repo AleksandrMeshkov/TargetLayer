@@ -1,8 +1,8 @@
-"""clear
+"""initial
 
-Revision ID: d94928ce5022
+Revision ID: e51d6ea8affc
 Revises: 
-Create Date: 2026-01-24 23:57:50.182176
+Create Date: 2026-01-25 01:18:48.292551
 
 """
 from typing import Sequence, Union
@@ -12,7 +12,7 @@ import sqlalchemy as sa
 
 
 # revision identifiers, used by Alembic.
-revision: str = 'd94928ce5022'
+revision: str = 'e51d6ea8affc'
 down_revision: Union[str, Sequence[str], None] = None
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
@@ -27,29 +27,12 @@ def upgrade() -> None:
     sa.Column('created_at', sa.DateTime(timezone=True), nullable=False),
     sa.PrimaryKeyConstraint('chat_id')
     )
-    op.create_table('goals',
-    sa.Column('goals_id', sa.Integer(), nullable=False),
-    sa.Column('title', sa.String(length=255), nullable=False),
-    sa.Column('description', sa.Text(), nullable=True),
-    sa.PrimaryKeyConstraint('goals_id')
-    )
     op.create_table('messages',
     sa.Column('messages_id', sa.Integer(), nullable=False),
     sa.Column('content', sa.Text(), nullable=False),
     sa.Column('sent_at', sa.DateTime(timezone=True), nullable=False),
     sa.Column('created_at', sa.DateTime(timezone=True), nullable=False),
     sa.PrimaryKeyConstraint('messages_id')
-    )
-    op.create_table('tasks',
-    sa.Column('task_id', sa.Integer(), nullable=False),
-    sa.Column('title', sa.String(length=255), nullable=False),
-    sa.Column('description', sa.Text(), nullable=True),
-    sa.Column('order_index', sa.Integer(), nullable=False),
-    sa.Column('completed', sa.Boolean(), nullable=False),
-    sa.Column('completed_at', sa.DateTime(timezone=True), nullable=True),
-    sa.Column('deadline_start', sa.DateTime(timezone=True), nullable=True),
-    sa.Column('deadline_end', sa.DateTime(timezone=True), nullable=True),
-    sa.PrimaryKeyConstraint('task_id')
     )
     op.create_table('users',
     sa.Column('user_id', sa.Integer(), nullable=False),
@@ -65,6 +48,17 @@ def upgrade() -> None:
     sa.PrimaryKeyConstraint('user_id'),
     sa.UniqueConstraint('email')
     )
+    op.create_table('goals',
+    sa.Column('goals_id', sa.Integer(), nullable=False),
+    sa.Column('title', sa.String(length=255), nullable=False),
+    sa.Column('description', sa.Text(), nullable=True),
+    sa.Column('user_id', sa.Integer(), nullable=False),
+    sa.Column('created_at', sa.DateTime(timezone=True), nullable=False),
+    sa.Column('updated_at', sa.DateTime(timezone=True), nullable=False),
+    sa.ForeignKeyConstraint(['user_id'], ['users.user_id'], ),
+    sa.PrimaryKeyConstraint('goals_id')
+    )
+    op.create_index(op.f('ix_goals_goals_id'), 'goals', ['goals_id'], unique=False)
     op.create_table('password_recovers',
     sa.Column('id', sa.Integer(), nullable=False),
     sa.Column('user_id', sa.Integer(), nullable=False),
@@ -76,17 +70,40 @@ def upgrade() -> None:
     sa.PrimaryKeyConstraint('id'),
     sa.UniqueConstraint('token')
     )
+    op.create_table('tasks',
+    sa.Column('task_id', sa.Integer(), nullable=False),
+    sa.Column('title', sa.String(length=255), nullable=False),
+    sa.Column('description', sa.Text(), nullable=True),
+    sa.Column('priority', sa.String(length=20), nullable=False),
+    sa.Column('estimated_duration_days', sa.Integer(), nullable=True),
+    sa.Column('resources', sa.Text(), nullable=True),
+    sa.Column('order_index', sa.Integer(), nullable=False),
+    sa.Column('completed', sa.Boolean(), nullable=False),
+    sa.Column('completed_at', sa.DateTime(timezone=True), nullable=True),
+    sa.Column('deadline_start', sa.DateTime(timezone=True), nullable=True),
+    sa.Column('deadline_end', sa.DateTime(timezone=True), nullable=True),
+    sa.Column('user_id', sa.Integer(), nullable=False),
+    sa.Column('created_at', sa.DateTime(timezone=True), nullable=False),
+    sa.Column('updated_at', sa.DateTime(timezone=True), nullable=False),
+    sa.ForeignKeyConstraint(['user_id'], ['users.user_id'], ),
+    sa.PrimaryKeyConstraint('task_id')
+    )
+    op.create_index(op.f('ix_tasks_task_id'), 'tasks', ['task_id'], unique=False)
     op.create_table('roadmaps',
     sa.Column('roadmap_id', sa.Integer(), nullable=False),
     sa.Column('goals_id', sa.Integer(), nullable=False),
     sa.Column('tasks_id', sa.Integer(), nullable=False),
     sa.Column('completed', sa.Boolean(), nullable=False),
+    sa.Column('user_id', sa.Integer(), nullable=False),
     sa.Column('created_at', sa.DateTime(timezone=True), nullable=False),
     sa.Column('updated_at', sa.DateTime(timezone=True), nullable=False),
-    sa.ForeignKeyConstraint(['goals_id'], ['goals.goals_id'], ),
-    sa.ForeignKeyConstraint(['tasks_id'], ['tasks.task_id'], ),
-    sa.PrimaryKeyConstraint('roadmap_id')
+    sa.ForeignKeyConstraint(['goals_id'], ['goals.goals_id'], ondelete='CASCADE'),
+    sa.ForeignKeyConstraint(['tasks_id'], ['tasks.task_id'], ondelete='CASCADE'),
+    sa.ForeignKeyConstraint(['user_id'], ['users.user_id'], ),
+    sa.PrimaryKeyConstraint('roadmap_id'),
+    sa.UniqueConstraint('goals_id', 'tasks_id', name='uq_goal_task')
     )
+    op.create_index(op.f('ix_roadmaps_roadmap_id'), 'roadmaps', ['roadmap_id'], unique=False)
     op.create_table('user_activity',
     sa.Column('user_activity_id', sa.Integer(), nullable=False),
     sa.Column('user_id', sa.Integer(), nullable=False),
@@ -113,11 +130,14 @@ def downgrade() -> None:
     # ### commands auto generated by Alembic - please adjust! ###
     op.drop_table('chat_messages')
     op.drop_table('user_activity')
+    op.drop_index(op.f('ix_roadmaps_roadmap_id'), table_name='roadmaps')
     op.drop_table('roadmaps')
-    op.drop_table('password_recovers')
-    op.drop_table('users')
+    op.drop_index(op.f('ix_tasks_task_id'), table_name='tasks')
     op.drop_table('tasks')
-    op.drop_table('messages')
+    op.drop_table('password_recovers')
+    op.drop_index(op.f('ix_goals_goals_id'), table_name='goals')
     op.drop_table('goals')
+    op.drop_table('users')
+    op.drop_table('messages')
     op.drop_table('chats')
     # ### end Alembic commands ###

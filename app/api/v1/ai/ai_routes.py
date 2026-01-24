@@ -1,73 +1,62 @@
-from fastapi import APIRouter, HTTPException, Depends, status
-from app.services.ai_service import AIService, get_ai_service
-from app.schemas.ai_schemas import AIChatResponse
-import json
-from pydantic import BaseModel, Field
+from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy.ext.asyncio import AsyncSession
 
-router = APIRouter(prefix="/api/v1/ai", tags=["AI"])
+from app.core.database.database import get_db
+from app.services.ai_service import get_ai_service, AIService
+from app.services.roadmap_service import RoadmapService
+from app.schemas.ai_schemas import GoalDecompositionRequest
 
-
-class GoalDecompositionRequest(BaseModel):
-    goal: str = Field(
-        ..., 
-        min_length=5, 
-        max_length=500,
-    )
-    timeframe: str | None = Field(
-        default=None,
-        max_length=100,
-    )
-
-    class Config:
-        json_schema_extra = {
-            "example": {
-                "goal": "Выучить Python для разработки веб-приложений",
-                "timeframe": "6 месяцев"
-            }
-        }
+router = APIRouter(prefix="/ai", tags=["AI"])
 
 
 @router.get("/health")
-async def health(ai_service: AIService = Depends(get_ai_service)):
-    is_available = await ai_service.check_model_availability()
-    status_code = 200 if is_available else 503
+async def health_check(ai_service: AIService = Depends(get_ai_service)):
+    is_healthy = await ai_service.check_health()
     return {
-        "status": "healthy" if is_available else "unhealthy",
+        "status": "healthy" if is_healthy else "unhealthy",
         "model": ai_service.model_name,
-        "model_available": is_available
+        "available": is_healthy
     }
 
 
-@router.post("/decompose", response_model=AIChatResponse)
-async def decompose_goal(
+@router.post("/decompose")
+async def decompose(
     request: GoalDecompositionRequest,
     ai_service: AIService = Depends(get_ai_service)
-) -> AIChatResponse:
+):
+    if not await ai_service.check_health():
+        raise HTTPException(status_code=503, detail="AI unavailable")
     
-    is_available = await ai_service.check_model_availability()
-    if not is_available:
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Model not available. Убедись, что Ollama запущен и модель загружена."
-        )
+    result = await ai_service.decompose_goal(request)
+    
+    if not result["success"]:
+        raise HTTPException(status_code=500, detail=result.get("error"))
+    
+    return result
 
-    result = await ai_service.decompose_goal(request.goal, request.timeframe)
 
-    if result.get("error"):
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=result.get("message", "AI error")
-        )
-
-    if result.get("json") is not None:
-        resp_text = json.dumps(result.get("json"), ensure_ascii=False)
-    else:
-        resp_text = result.get("response", "")
-
-    return AIChatResponse(
-        response=resp_text,
-        model=result.get("model"),
-        tokens_used=result.get("tokens_used"),
-        processing_time=result.get("processing_time"),
-        cached=False  
-    )
+@router.post("/create-roadmap")
+async def create_roadmap(
+    request: GoalDecompositionRequest,
+    db: AsyncSession = Depends(get_db),
+    ai_service: AIService = Depends(get_ai_service)
+):
+    if not await ai_service.check_health():
+        raise HTTPException(status_code=503, detail="AI unavailable")
+    
+    ai_result = await ai_service.decompose_goal(request)
+    
+    if not ai_result["success"]:
+        raise HTTPException(status_code=500, detail=ai_result.get("error"))
+    
+    service = RoadmapService(db)
+    goal = await service.create_from_ai(ai_result["data"])
+    
+    return {
+        "success": True,
+        "goal_id": goal.goals_id,
+        "title": goal.title,
+        "tasks": len(ai_result["data"].tasks),
+        "tokens": ai_result.get("tokens"),
+        "time": ai_result.get("time")
+    }
