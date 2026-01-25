@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
-from app.services.email_service import EmailVerificationService
+from app.services.user.email_service import EmailVerificationService
 from app.core.database.database import get_db
 from app.models.user import User
 from app.models.user_activity import UserActivity

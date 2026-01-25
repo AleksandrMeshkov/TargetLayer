@@ -7,7 +7,7 @@ from app.schemas.password_recovery import (
     PasswordRecoveryConfirmSchema,
     PasswordRecoveryResponseSchema
 )
-from app.services.password_recovery_service import PasswordRecoveryService
+from app.services.password.password_recovery_service import PasswordRecoveryService
 
 router = APIRouter(prefix="/password", tags=["password-recovery"])
 

@@ -2,8 +2,8 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database.database import get_db
-from app.services.ai_service import get_ai_service, AIService
-from app.services.roadmap_service import RoadmapService
+from app.services.ai_service.ai_service import get_ai_service, AIService
+from app.services.ai_service.roadmap_service import RoadmapService
 from app.schemas.ai_schemas import GoalDecompositionRequest
 
 router = APIRouter(prefix="/ai", tags=["AI"])

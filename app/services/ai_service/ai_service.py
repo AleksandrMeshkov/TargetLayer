@@ -9,7 +9,7 @@ from app.core.ai.ai_config import (
     AI_MODEL_NAME, GENERATION_CONFIG, MAX_RETRIES, RETRY_DELAY
 )
 from app.schemas.ai_schemas import AIResponse, GoalDecompositionRequest
-from app.services.json_parser import JSONParser
+from app.services.ai_service.json_parser import JSONParser
 
 logger = logging.getLogger(__name__)
 

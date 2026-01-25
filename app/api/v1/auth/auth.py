@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, status, Response, Cookie
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.schemas.auth import UserRegister, Token
-from app.services.auth_service import AuthService
+from app.services.user.auth_service import AuthService
 from app.core.database.database import get_db
 from app.core.settings.settings import settings
 

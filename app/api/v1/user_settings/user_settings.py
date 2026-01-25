@@ -2,10 +2,10 @@ from fastapi import APIRouter, Depends, HTTPException, status, Security
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.services.get_my_user import get_current_user
+from app.services.user.get_my_user import get_current_user
 from app.core.database.database import get_db
 from app.schemas.update_user import UserNameSchema, UserPublicSchema, UserAvatarSchema
-from app.services.update_username import UserService
+from app.services.user.update_username import UserService
 from app.models.user import User
 
 router = APIRouter(prefix="/user", tags=["user"])

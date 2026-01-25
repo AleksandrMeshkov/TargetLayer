@@ -5,7 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.security.password import hash_password, verify_password
 from app.core.security.jwt import JWTManager
 from app.models.user import User
-from app.models.user_activity import UserActivity
+from app.models.user_roadmap import UserRoadmap
 from app.models.chat_message import ChatMessage
 from app.models.message import Message
 from app.models.chat import Chat
@@ -50,11 +50,11 @@ class AuthService:
 		self.db.add(roadmap)
 		await self.db.flush()
 
-		user_activity = UserActivity(
+		user_roadmap = UserRoadmap(
 			user_id=user.user_id,
 			roadmap_id=roadmap.roadmap_id,
 		)
-		self.db.add(user_activity)
+		self.db.add(user_roadmap)
 		await self.db.flush()
 
 		message = Message(content=f"Welcome message for {email}")
@@ -65,13 +65,13 @@ class AuthService:
 		chat_msg = ChatMessage(
 			message_id=message.messages_id,
 			chat_id=chat.chat_id,
-			user_activity_id=user_activity.user_activity_id
+			user_id=user.user_id
 		)
 		self.db.add(chat_msg)
 		await self.db.commit()
-		await self.db.refresh(user_activity)
+		await self.db.refresh(user_roadmap)
 
-		return int(user_activity.user_activity_id)
+		return int(user_roadmap.user_activity_id)
 
 	async def authenticate_email(self, email: str, password: str) -> Optional[int]:
 		q = await self.db.execute(select(User).where(User.email == email))
@@ -82,7 +82,7 @@ class AuthService:
 		if not verify_password(password, user.password or ""):
 			return None
 
-		q2 = await self.db.execute(select(UserActivity).where(UserActivity.user_id == user.user_id))
+		q2 = await self.db.execute(select(UserRoadmap).where(UserRoadmap.user_id == user.user_id))
 		ua = q2.scalars().first()
 		if not ua:
 			return None
@@ -106,7 +106,7 @@ class AuthService:
 		except Exception:
 			return None
 
-		q = await self.db.execute(select(UserActivity).where(UserActivity.user_activity_id == user_activity_id))
+		q = await self.db.execute(select(UserRoadmap).where(UserRoadmap.user_activity_id == user_activity_id))
 		ua = q.scalars().first()
 		if not ua:
 			return None

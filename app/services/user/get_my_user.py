@@ -4,17 +4,17 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from app.core.database.database import get_db
 from app.core.security.jwt import JWTManager
-from app.models.user_activity import UserActivity
+from app.models.user_roadmap import UserRoadmap
 from app.models.user import User
 
 security = HTTPBearer()
 jwt_manager = JWTManager()
 
 
-async def get_current_user_activity(
+async def get_current_user_roadmap(
     credentials: HTTPAuthorizationCredentials = Depends(security),
     db: AsyncSession = Depends(get_db)
-) -> UserActivity:
+) -> UserRoadmap:
     token = credentials.credentials
     payload = jwt_manager.decode_token(token)
     
@@ -39,23 +39,23 @@ async def get_current_user_activity(
         )
     
     from sqlalchemy.orm import selectinload
-    stmt = select(UserActivity).options(
-        selectinload(UserActivity.user)
-    ).where(UserActivity.user_activity_id == user_activity_id)
+    stmt = select(UserRoadmap).options(
+        selectinload(UserRoadmap.user)
+    ).where(UserRoadmap.user_activity_id == user_activity_id)
     
     result = await db.execute(stmt)
-    user_activity = result.scalars().first()
+    user_roadmap = result.scalars().first()
     
-    if not user_activity:
+    if not user_roadmap:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="User activity not found"
+            detail="User roadmap not found"
         )
     
-    return user_activity
+    return user_roadmap
 
 
 async def get_current_user(
-    user_activity: UserActivity = Depends(get_current_user_activity)
+    user_roadmap: UserRoadmap = Depends(get_current_user_roadmap)
 ) -> User:
-    return user_activity.user
+    return user_roadmap.user

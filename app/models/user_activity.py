@@ -1,14 +1,7 @@
-from sqlalchemy.orm import Mapped, mapped_column, relationship
-from sqlalchemy import Integer, ForeignKey
-from .base import Base
+# This file is kept for backward compatibility
+# UserActivity has been renamed to UserRoadmap
+# Please use: from app.models.user_roadmap import UserRoadmap
 
-class UserActivity(Base):
-    __tablename__ = "user_activity"
-    
-    user_activity_id: Mapped[int] = mapped_column(primary_key=True)
-    user_id: Mapped[int] = mapped_column(Integer, ForeignKey("users.user_id"))
-    roadmap_id: Mapped[int] = mapped_column(Integer, ForeignKey("roadmaps.roadmap_id"))
-    
-    user: Mapped["User"] = relationship("User", back_populates="user_activities")
-    roadmap: Mapped["Roadmap"] = relationship("Roadmap", back_populates="user_activities")
-    chat_messages: Mapped[list["ChatMessage"]] = relationship("ChatMessage", back_populates="user_activity")
+from app.models.user_roadmap import UserRoadmap as UserActivity
+
+__all__ = ["UserActivity"]

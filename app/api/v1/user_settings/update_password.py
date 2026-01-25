@@ -2,10 +2,10 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import HTTPBearer
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.services.get_my_user import get_current_user
+from app.services.user.get_my_user import get_current_user
 from app.core.database.database import get_db
 from app.schemas.update_password_user import PasswordChangeSchema
-from app.services.password_service import PasswordService
+from app.services.password.password_service import PasswordService
 from app.models.user import User
 
 router = APIRouter(prefix="/password", tags=["password"])

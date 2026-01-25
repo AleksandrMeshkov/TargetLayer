@@ -18,5 +18,6 @@ class User(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow, onupdate=datetime.utcnow)
     
-    user_activities: Mapped[list["UserActivity"]] = relationship("UserActivity", back_populates="user")
+    user_roadmaps: Mapped[list["UserRoadmap"]] = relationship("UserRoadmap", back_populates="user")
     password_recoveries: Mapped[list["PasswordRecovery"]] = relationship("PasswordRecovery", back_populates="user")
+    chat_messages: Mapped[list["ChatMessage"]] = relationship("ChatMessage", back_populates="user")

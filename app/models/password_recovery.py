@@ -6,7 +6,7 @@ from .base import Base
 
 
 class PasswordRecovery(Base):
-    __tablename__ = "password_recovers"
+    __tablename__ = "password_recovery"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     user_id: Mapped[int] = mapped_column(Integer, ForeignKey("users.user_id", ondelete="CASCADE"),nullable=False)

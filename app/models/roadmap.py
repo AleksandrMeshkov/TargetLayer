@@ -16,4 +16,4 @@ class Roadmap(Base):
     
     goal: Mapped["Goal"] = relationship("Goal", back_populates="roadmaps")
     task: Mapped["Task"] = relationship("Task", back_populates="roadmaps")
-    user_activities: Mapped[list["UserActivity"]] = relationship("UserActivity", back_populates="roadmap")
+    user_roadmaps: Mapped[list["UserRoadmap"]] = relationship("UserRoadmap", back_populates="roadmap")
