@@ -1,23 +1,29 @@
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, delete
+from sqlalchemy import select
 
 from app.core.database.database import get_db
 from app.core.security.jwt import JWTManager
 from app.models.user_roadmap import UserRoadmap
 from app.models.roadmap import Roadmap
+from app.models.goal import Goal
 
 security = HTTPBearer()
 jwt_manager = JWTManager()
 
 
-async def delete_user_roadmap(
+async def update_goal_in_roadmap(
     roadmap_id: int,
+    goal_title: str,
+    goal_description: str | None,
     credentials: HTTPAuthorizationCredentials = Depends(security),
     db: AsyncSession = Depends(get_db)
 ) -> dict:
-    
+    """
+    Обновить данные цели в роудмапе текущего пользователя.
+    Проверяет, что роудмап принадлежит пользователю перед обновлением.
+    """
     token = credentials.credentials
     payload = jwt_manager.decode_token(token)
     
@@ -41,6 +47,7 @@ async def delete_user_roadmap(
             detail="Invalid token subject"
         )
     
+    # Проверяем, что роудмап принадлежит пользователю
     stmt = select(UserRoadmap).where(
         (UserRoadmap.user_activity_id == user_activity_id) &
         (UserRoadmap.roadmap_id == roadmap_id)
@@ -51,23 +58,45 @@ async def delete_user_roadmap(
     if not user_roadmap:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Roadmap not found or you don't have permission to delete it"
+            detail="Roadmap not found or you don't have permission to update it"
         )
     
-    delete_stmt = delete(UserRoadmap).where(UserRoadmap.roadmap_id == roadmap_id)
-    await db.execute(delete_stmt)
-    
+    # Получаем роудмап с целью
     roadmap_stmt = select(Roadmap).where(Roadmap.roadmap_id == roadmap_id)
     roadmap_result = await db.execute(roadmap_stmt)
     roadmap = roadmap_result.scalars().first()
     
-    if roadmap:
-        await db.delete(roadmap)
+    if not roadmap:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Roadmap not found"
+        )
     
+    # Получаем цель и обновляем её
+    goal_stmt = select(Goal).where(Goal.goals_id == roadmap.goals_id)
+    goal_result = await db.execute(goal_stmt)
+    goal = goal_result.scalars().first()
+    
+    if not goal:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Goal not found"
+        )
+    
+    # Обновляем данные цели
+    goal.title = goal_title
+    goal.description = goal_description
+    
+    db.add(goal)
     await db.commit()
+    await db.refresh(goal)
     
     return {
         "status": "success",
-        "message": "Roadmap deleted successfully",
-        "roadmap_id": roadmap_id
+        "message": "Goal updated successfully",
+        "goal": {
+            "goals_id": goal.goals_id,
+            "title": goal.title,
+            "description": goal.description
+        }
     }
