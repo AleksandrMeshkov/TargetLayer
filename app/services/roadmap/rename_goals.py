@@ -20,10 +20,7 @@ async def update_goal_in_roadmap(
     credentials: HTTPAuthorizationCredentials = Depends(security),
     db: AsyncSession = Depends(get_db)
 ) -> dict:
-    """
-    Обновить данные цели в роудмапе текущего пользователя.
-    Проверяет, что роудмап принадлежит пользователю перед обновлением.
-    """
+    
     token = credentials.credentials
     payload = jwt_manager.decode_token(token)
     
@@ -47,7 +44,6 @@ async def update_goal_in_roadmap(
             detail="Invalid token subject"
         )
     
-    # Проверяем, что роудмап принадлежит пользователю
     stmt = select(UserRoadmap).where(
         (UserRoadmap.user_activity_id == user_activity_id) &
         (UserRoadmap.roadmap_id == roadmap_id)
@@ -61,7 +57,6 @@ async def update_goal_in_roadmap(
             detail="Roadmap not found or you don't have permission to update it"
         )
     
-    # Получаем роудмап с целью
     roadmap_stmt = select(Roadmap).where(Roadmap.roadmap_id == roadmap_id)
     roadmap_result = await db.execute(roadmap_stmt)
     roadmap = roadmap_result.scalars().first()
@@ -72,7 +67,6 @@ async def update_goal_in_roadmap(
             detail="Roadmap not found"
         )
     
-    # Получаем цель и обновляем её
     goal_stmt = select(Goal).where(Goal.goals_id == roadmap.goals_id)
     goal_result = await db.execute(goal_stmt)
     goal = goal_result.scalars().first()
@@ -83,7 +77,6 @@ async def update_goal_in_roadmap(
             detail="Goal not found"
         )
     
-    # Обновляем данные цели
     goal.title = goal_title
     goal.description = goal_description
     
