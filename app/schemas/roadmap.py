@@ -1,4 +1,4 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 from typing import Optional
 from datetime import datetime
 
@@ -12,35 +12,34 @@ class TaskResponse(BaseModel):
     completed_at: Optional[datetime] = None
     deadline_start: Optional[datetime] = None
     deadline_end: Optional[datetime] = None
+    created_at: datetime
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class GoalResponse(BaseModel):
     goals_id: int
     title: str
     description: Optional[str] = None
+    created_at: datetime
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class RoadmapResponse(BaseModel):
     roadmap_id: int
-    goal: GoalResponse
-    task: TaskResponse
+    goals_id: int
+    goal: Optional[GoalResponse] = None
+    tasks: list[TaskResponse] = []
     completed: bool
     created_at: datetime
     updated_at: datetime
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class RoadmapsListResponse(BaseModel):
     roadmaps: list[RoadmapResponse]
     total: int
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)

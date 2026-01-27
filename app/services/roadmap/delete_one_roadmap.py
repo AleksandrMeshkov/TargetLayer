@@ -5,8 +5,9 @@ from sqlalchemy import select, delete
 
 from app.core.database.database import get_db
 from app.core.security.jwt import JWTManager
-from app.models.user_roadmap import UserRoadmap
+from app.models.user import User
 from app.models.roadmap import Roadmap
+from app.models.goal import Goal
 
 security = HTTPBearer()
 jwt_manager = JWTManager()
@@ -34,36 +35,40 @@ async def delete_user_roadmap(
         )
     
     try:
-        user_activity_id = int(payload.get("sub"))
+        user_id = int(payload.get("sub"))
     except (ValueError, TypeError):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid token subject"
         )
     
-    stmt = select(UserRoadmap).where(
-        (UserRoadmap.user_activity_id == user_activity_id) &
-        (UserRoadmap.roadmap_id == roadmap_id)
-    )
-    result = await db.execute(stmt)
-    user_roadmap = result.scalars().first()
+    # Get roadmap and verify user ownership through goal
+    roadmap_stmt = select(Roadmap).where(Roadmap.roadmap_id == roadmap_id)
+    roadmap_result = await db.execute(roadmap_stmt)
+    roadmap = roadmap_result.scalars().first()
     
-    if not user_roadmap:
+    if not roadmap:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Roadmap not found"
+        )
+    
+    # Verify user owns the goal associated with this roadmap
+    goal_stmt = select(Goal).where(
+        (Goal.goals_id == roadmap.goals_id) &
+        (Goal.user_id == user_id)
+    )
+    goal_result = await db.execute(goal_stmt)
+    goal = goal_result.scalars().first()
+    
+    if not goal:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Roadmap not found or you don't have permission to delete it"
         )
     
-    delete_stmt = delete(UserRoadmap).where(UserRoadmap.roadmap_id == roadmap_id)
-    await db.execute(delete_stmt)
-    
-    roadmap_stmt = select(Roadmap).where(Roadmap.roadmap_id == roadmap_id)
-    roadmap_result = await db.execute(roadmap_stmt)
-    roadmap = roadmap_result.scalars().first()
-    
-    if roadmap:
-        await db.delete(roadmap)
-    
+    # Delete roadmap (tasks will cascade delete)
+    db.delete(roadmap)
     await db.commit()
     
     return {

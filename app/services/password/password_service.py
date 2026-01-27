@@ -27,7 +27,7 @@ class PasswordService:
         
         hashed_password = hash_password(password_data.new_password)
         
-        user.password = hashed_password
+        user.password_hash = hashed_password
         
         await self.db.commit()
         
@@ -46,7 +46,7 @@ class PasswordService:
         result = await self.db.execute(stmt)
         user = result.scalars().first()
         
-        if not user or not user.password:
+        if not user or not user.password_hash:
             return False
         
-        return verify_password(plain_password, user.password)
+        return verify_password(plain_password, user.password_hash)

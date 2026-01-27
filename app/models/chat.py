@@ -7,8 +7,8 @@ from .base import Base
 class Chat(Base):
     __tablename__ = "chats"
     
-    chat_id: Mapped[int] = mapped_column(primary_key=True)
+    chat_id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     name: Mapped[Optional[str]] = mapped_column(String(255))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow)
     
-    chat_messages: Mapped[list["ChatMessage"]] = relationship("ChatMessage", back_populates="chat")
+    messages: Mapped[list["Message"]] = relationship("Message", back_populates="chat", cascade="all, delete-orphan")

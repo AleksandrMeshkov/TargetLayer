@@ -1,4 +1,6 @@
 from pydantic import BaseModel
+from typing import Optional
+from datetime import datetime
 
 class GoalCreate(BaseModel):
     title: str
@@ -8,9 +10,12 @@ class GoalUpdate(BaseModel):
     title: str
     description: str | None = None
 
-class GoalResponse(GoalCreate):
+class GoalResponse(BaseModel):
     goals_id: int
-    completed: bool
+    user_id: int
+    title: str
+    description: Optional[str] = None
+    created_at: datetime
 
     class Config:
         from_attributes = True

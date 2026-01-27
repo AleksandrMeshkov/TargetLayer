@@ -71,7 +71,7 @@ class PasswordRecoveryService:
             if not user:
                 raise HTTPException(status_code=400, detail="Пользователь не найден")
             
-            user.password = hash_password(new_password)
+            user.password_hash = hash_password(new_password)
             
             recovery.is_used = True
             
@@ -97,10 +97,6 @@ class PasswordRecoveryService:
         result = await self._session.execute(stmt)
         return result.scalars().first()
     
-    async def _get_recovery_by_token(self, token: str) -> PasswordRecovery | None:
-        stmt = select(PasswordRecovery).where(PasswordRecovery.token == token)
-        result = await self._session.execute(stmt)
-        return result.scalars().first()
     async def _get_recovery_by_token(self, token: str) -> PasswordRecovery | None:
         stmt = select(PasswordRecovery).where(PasswordRecovery.token == token)
         result = await self._session.execute(stmt)

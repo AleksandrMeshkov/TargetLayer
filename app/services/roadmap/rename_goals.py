@@ -5,7 +5,7 @@ from sqlalchemy import select
 
 from app.core.database.database import get_db
 from app.core.security.jwt import JWTManager
-from app.models.user_roadmap import UserRoadmap
+from app.models.user import User
 from app.models.roadmap import Roadmap
 from app.models.goal import Goal
 
@@ -37,26 +37,14 @@ async def update_goal_in_roadmap(
         )
     
     try:
-        user_activity_id = int(payload.get("sub"))
+        user_id = int(payload.get("sub"))
     except (ValueError, TypeError):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid token subject"
         )
     
-    stmt = select(UserRoadmap).where(
-        (UserRoadmap.user_activity_id == user_activity_id) &
-        (UserRoadmap.roadmap_id == roadmap_id)
-    )
-    result = await db.execute(stmt)
-    user_roadmap = result.scalars().first()
-    
-    if not user_roadmap:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Roadmap not found or you don't have permission to update it"
-        )
-    
+    # Get roadmap
     roadmap_stmt = select(Roadmap).where(Roadmap.roadmap_id == roadmap_id)
     roadmap_result = await db.execute(roadmap_stmt)
     roadmap = roadmap_result.scalars().first()
@@ -67,14 +55,18 @@ async def update_goal_in_roadmap(
             detail="Roadmap not found"
         )
     
-    goal_stmt = select(Goal).where(Goal.goals_id == roadmap.goals_id)
+    # Get goal and verify user ownership
+    goal_stmt = select(Goal).where(
+        (Goal.goals_id == roadmap.goals_id) &
+        (Goal.user_id == user_id)
+    )
     goal_result = await db.execute(goal_stmt)
     goal = goal_result.scalars().first()
     
     if not goal:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Goal not found"
+            detail="Goal not found or you don't have permission to update it"
         )
     
     goal.title = goal_title

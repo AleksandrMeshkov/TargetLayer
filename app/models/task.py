@@ -7,7 +7,8 @@ from .base import Base
 class Task(Base):
     __tablename__ = "tasks"
     
-    task_id: Mapped[int] = mapped_column(primary_key=True)
+    task_id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    roadmap_id: Mapped[int] = mapped_column(Integer, ForeignKey("roadmaps.roadmap_id", ondelete="CASCADE"), nullable=False)
     title: Mapped[str] = mapped_column(String(255), nullable=False)
     description: Mapped[Optional[str]] = mapped_column(Text)
     order_index: Mapped[int] = mapped_column(Integer, default=0)
@@ -15,5 +16,6 @@ class Task(Base):
     completed_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
     deadline_start: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
     deadline_end: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow)
     
-    roadmaps: Mapped[list["Roadmap"]] = relationship("Roadmap", back_populates="task")
+    roadmap: Mapped["Roadmap"] = relationship("Roadmap", back_populates="tasks")

@@ -6,8 +6,9 @@ from sqlalchemy.orm import selectinload
 
 from app.core.database.database import get_db
 from app.core.security.jwt import JWTManager
-from app.models.user_roadmap import UserRoadmap
+from app.models.user import User
 from app.models.roadmap import Roadmap
+from app.models.goal import Goal
 
 security = HTTPBearer()
 jwt_manager = JWTManager()
@@ -34,19 +35,34 @@ async def get_user_roadmaps(
         )
     
     try:
-        user_activity_id = int(payload.get("sub"))
+        user_id = int(payload.get("sub"))
     except (ValueError, TypeError):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid token subject"
         )
     
-    stmt = select(Roadmap).join(UserRoadmap).options(
-        selectinload(Roadmap.goal),
-        selectinload(Roadmap.task)
-    ).where(UserRoadmap.user_activity_id == user_activity_id).distinct()
+    # Get user and all their goals with roadmaps and tasks
+    stmt = select(User).options(
+        selectinload(User.goals).selectinload(Goal.roadmap).options(
+            selectinload(Roadmap.tasks),
+            selectinload(Roadmap.goal)
+        )
+    ).where(User.user_id == user_id)
     
     result = await db.execute(stmt)
-    roadmaps = result.scalars().all()
+    user = result.scalar_one_or_none()
+    
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="User not found"
+        )
+    
+    # Extract roadmaps from user's goals
+    roadmaps = []
+    for goal in user.goals:
+        if goal.roadmap:
+            roadmaps.append(goal.roadmap)
     
     return roadmaps

@@ -2,8 +2,6 @@ from .base import Base
 from .user import User
 from .chat import Chat
 from .message import Message
-from .chat_message import ChatMessage
-from .user_roadmap import UserRoadmap
 from .goal import Goal
 from .task import Task
 from .password_recovery import PasswordRecovery
