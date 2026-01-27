@@ -5,6 +5,8 @@ from app.core.database.database import get_db
 from app.services.ai_service.ai_service import get_ai_service, AIService
 from app.services.ai_service.roadmap_service import RoadmapService
 from app.schemas.ai_schemas import GoalDecompositionRequest
+from app.services.user.get_my_user import get_current_user
+from app.models.user import User
 
 router = APIRouter(prefix="/ai", tags=["AI"])
 
@@ -35,11 +37,12 @@ async def decompose(
     return result
 
 
-@router.post("/create-roadmap")
+@router.post("/create-roadmap", openapi_extra={"security": [{"Bearer": []}]})
 async def create_roadmap(
     request: GoalDecompositionRequest,
     db: AsyncSession = Depends(get_db),
-    ai_service: AIService = Depends(get_ai_service)
+    ai_service: AIService = Depends(get_ai_service),
+    current_user: User = Depends(get_current_user)
 ):
     if not await ai_service.check_health():
         raise HTTPException(status_code=503, detail="AI unavailable")
@@ -50,7 +53,7 @@ async def create_roadmap(
         raise HTTPException(status_code=500, detail=ai_result.get("error"))
     
     service = RoadmapService(db)
-    goal = await service.create_from_ai(ai_result["data"])
+    goal = await service.create_from_ai(ai_result["data"], user_id=int(current_user.user_id))
     
     return {
         "success": True,

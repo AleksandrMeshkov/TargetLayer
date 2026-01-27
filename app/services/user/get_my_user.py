@@ -38,10 +38,7 @@ async def get_current_user(
         )
     
     from sqlalchemy.orm import selectinload
-    stmt = select(User).options(
-        selectinload(User.goals),
-        selectinload(User.messages)
-    ).where(User.user_id == user_id)
+    stmt = select(User).where(User.user_id == user_id)
     
     result = await db.execute(stmt)
     user = result.scalar_one_or_none()

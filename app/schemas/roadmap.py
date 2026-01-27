@@ -43,3 +43,24 @@ class RoadmapsListResponse(BaseModel):
     total: int
 
     model_config = ConfigDict(from_attributes=True)
+
+
+class TaskCreate(BaseModel):
+    title: str
+    description: Optional[str] = None
+    order_index: Optional[int] = 0
+    deadline_start: Optional[datetime] = None
+    deadline_end: Optional[datetime] = None
+
+    model_config = ConfigDict()
+
+
+class TaskUpdate(BaseModel):
+    title: Optional[str] = None
+    description: Optional[str] = None
+    order_index: Optional[int] = None
+    deadline_start: Optional[datetime] = None
+    deadline_end: Optional[datetime] = None
+    completed: Optional[bool] = None
+
+    model_config = ConfigDict()
