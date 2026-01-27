@@ -42,7 +42,6 @@ async def delete_user_roadmap(
             detail="Invalid token subject"
         )
     
-    # Get roadmap and verify user ownership through goal
     roadmap_stmt = select(Roadmap).where(Roadmap.roadmap_id == roadmap_id)
     roadmap_result = await db.execute(roadmap_stmt)
     roadmap = roadmap_result.scalars().first()
@@ -53,7 +52,6 @@ async def delete_user_roadmap(
             detail="Roadmap not found"
         )
     
-    # Verify user owns the goal associated with this roadmap
     goal_stmt = select(Goal).where(
         (Goal.goals_id == roadmap.goals_id) &
         (Goal.user_id == user_id)
@@ -67,7 +65,6 @@ async def delete_user_roadmap(
             detail="Roadmap not found or you don't have permission to delete it"
         )
     
-    # Delete roadmap (tasks will cascade delete)
     db.delete(roadmap)
     await db.commit()
     

@@ -18,14 +18,13 @@ class RoadmapService:
         start_date = datetime.utcnow()
         
         goal = Goal(
-            user_id=user_id or 1,  # Default to user 1 if not provided
+            user_id=user_id or 1, 
             title=ai_response.goal_title,
             description=ai_response.goal_description
         )
         self.db.add(goal)
         await self.db.flush()
         
-        # Create roadmap for the goal
         roadmap = Roadmap(
             goals_id=goal.goals_id,
             completed=False
@@ -33,7 +32,6 @@ class RoadmapService:
         self.db.add(roadmap)
         await self.db.flush()
         
-        # Create tasks for the roadmap
         for i, ai_task in enumerate(ai_response.tasks):
             deadline = start_date + timedelta(days=ai_task.deadline_offset_days)
             

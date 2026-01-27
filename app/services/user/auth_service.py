@@ -35,7 +35,6 @@ class AuthService:
 		self.db.add(user)
 		await self.db.flush()
 
-		# Create default goal for user
 		goal = Goal(
 			user_id=user.user_id,
 			title="Default Goal", 
@@ -44,7 +43,6 @@ class AuthService:
 		self.db.add(goal)
 		await self.db.flush()
 
-		# Create roadmap for the goal
 		roadmap = Roadmap(
 			goals_id=goal.goals_id,
 			completed=False
@@ -52,7 +50,6 @@ class AuthService:
 		self.db.add(roadmap)
 		await self.db.flush()
 
-		# Create default task for roadmap
 		task = Task(
 			roadmap_id=roadmap.roadmap_id,
 			title="Default Task",
@@ -61,12 +58,10 @@ class AuthService:
 		self.db.add(task)
 		await self.db.flush()
 
-		# Create chat first
 		chat = Chat()
 		self.db.add(chat)
 		await self.db.flush()
 
-		# Create welcome message with chat_id
 		message = Message(
 			content=f"Welcome message for {email}",
 			user_id=user.user_id,

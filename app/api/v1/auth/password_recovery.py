@@ -22,24 +22,7 @@ async def request_password_recovery(
     request: PasswordRecoveryRequestSchema,
     db: AsyncSession = Depends(get_db)
 ):
-    """
-    Инициирует процесс восстановления пароля.
     
-    Процесс:
-    - Проверяет наличие пользователя с таким email
-    - Генерирует криптографически стойкий токен
-    - Сохраняет токен в БД с временем истечения (24 часа)
-    - Отправляет письмо с токеном на email
-    
-    Параметры:
-        email: Email адрес пользователя
-    
-    Возвращает:
-        Статус успеха и сообщение
-    
-    Исключает:
-        400: Пользователь не найден или ошибка при отправке письма
-    """
     try:
         recovery_service = PasswordRecoveryService(db)
         recovery = await recovery_service.create_recovery(request.email)
@@ -67,27 +50,6 @@ async def recover_password(
     request: PasswordRecoveryConfirmSchema,
     db: AsyncSession = Depends(get_db)
 ):
-    """
-    Завершает процесс восстановления пароля.
-    
-    Процесс:
-    - Проверяет валидность токена
-    - Проверяет что токен не истек и не использован
-    - Хеширует новый пароль
-    - Обновляет пароль в БД
-    - Помечает токен как использованный
-    
-    Параметры:
-        token: Токен из письма восстановления
-        new_password: Новый пароль
-        confirm_password: Подтверждение пароля
-    
-    Возвращает:
-        Статус успеха
-    
-    Исключает:
-        400: Токен не найден, истек, уже использован или пароли не совпадают
-    """
     try:
         recovery_service = PasswordRecoveryService(db)
         await recovery_service.recover_password(request.token, request.new_password)

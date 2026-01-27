@@ -42,7 +42,6 @@ async def get_user_roadmaps(
             detail="Invalid token subject"
         )
     
-    # Get user and all their goals with roadmaps and tasks
     stmt = select(User).options(
         selectinload(User.goals).selectinload(Goal.roadmap).options(
             selectinload(Roadmap.tasks),
@@ -59,7 +58,6 @@ async def get_user_roadmaps(
             detail="User not found"
         )
     
-    # Extract roadmaps from user's goals
     roadmaps = []
     for goal in user.goals:
         if goal.roadmap:

@@ -14,7 +14,6 @@ async def get_tasks_for_roadmap(
     user_id: int,
     roadmap_id: int,
 ) -> List[Task]:
-    # Load roadmap with tasks
     stmt = select(Roadmap).options(selectinload(Roadmap.tasks)).where(Roadmap.roadmap_id == roadmap_id)
     result = await db.execute(stmt)
     roadmap = result.scalars().first()
@@ -22,7 +21,6 @@ async def get_tasks_for_roadmap(
     if not roadmap:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Roadmap not found")
 
-    # Verify ownership via Goal -> compare roadmap.goals_id to user's goal
     goal_stmt = select(Goal).where((Goal.goals_id == roadmap.goals_id) & (Goal.user_id == user_id))
     goal_result = await db.execute(goal_stmt)
     goal = goal_result.scalars().first()
@@ -30,5 +28,4 @@ async def get_tasks_for_roadmap(
     if not goal:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="You don't have access to this roadmap")
 
-    # Return tasks (already loaded)
     return list(roadmap.tasks)

@@ -55,7 +55,6 @@ async def update_goal_in_roadmap(
             detail="Roadmap not found"
         )
     
-    # Get goal and verify user ownership
     goal_stmt = select(Goal).where(
         (Goal.goals_id == roadmap.goals_id) &
         (Goal.user_id == user_id)

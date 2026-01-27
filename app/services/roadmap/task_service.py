@@ -70,12 +70,10 @@ async def update_task_for_roadmap(
     if not task:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Task not found")
 
-    # Update fields
     for key, val in data.items():
         if hasattr(task, key) and val is not None:
             setattr(task, key, val)
 
-    # If marking completed, set completed_at
     if "completed" in data:
         if data.get("completed"):
             task.completed_at = datetime.utcnow()
