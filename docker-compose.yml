@@ -3,58 +3,94 @@ version: '3.9'
 services:
   database:
     container_name: targetlayer_database
-    image: postgres:16.4
-    restart: always
+    image: postgres:16.4-alpine  
+    restart: unless-stopped  
     env_file:
       - .env
     environment:
       - POSTGRES_USER=${POSTGRES_USER}
       - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
       - POSTGRES_DB=${POSTGRES_DB}
-    ports:
-      - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     networks:
       - targetlayer_network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+        reservations:
+          memory: 512M
 
   ollama:
     container_name: targetlayer_ollama
-    image: ollama/ollama:latest
-    restart: always
+    image: ollama/ollama:0.3.10  
+    restart: unless-stopped
     hostname: ollama
-    ports:
-      - "11434:11434"
     volumes:
       - ollama_data:/root/.ollama
     environment:
       - OLLAMA_HOST=0.0.0.0:11434
+      - OLLAMA_KEEP_ALIVE=24h  
     networks:
       - targetlayer_network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:11434/api/tags"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          memory: 4G 
+        reservations:
+          memory: 2G
 
   api:
     container_name: targetlayer_api
     build:
       context: .
       dockerfile: docker/Dockerfile
-    restart: always
+    restart: unless-stopped
     env_file:
       - .env
     environment:
       - OLLAMA_BASE_URL=http://ollama:11434
       - POSTGRES_HOST=database
+      - PYTHONUNBUFFERED=1
     ports:
-      - "8000:8000"
+      - "127.0.0.1:8000:8000"  
     depends_on:
-      - database
-      - ollama
+      database:
+        condition: service_healthy
+      ollama:
+        condition: service_healthy
     networks:
-      - targetlayer_network
+      - targetlayer_network  
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/docs"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+        reservations:
+          memory: 256M
 
 volumes:
   postgres_data:
+    driver: local
   ollama_data:
+    driver: local
 
 networks:
   targetlayer_network:
     driver: bridge
+    name: targetlayer_network  
