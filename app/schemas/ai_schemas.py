@@ -22,6 +22,7 @@ class AIRoadmapResponse(BaseModel):
 
 class AIRoadmapRequest(BaseModel):
     prompt: str = Field(..., min_length=5, max_length=1000, description="Описание цели")
+    conversation_id: Optional[int] = Field(None, description="Идентификатор существующего чата. Если не указан — создастся новый.")
 
     model_config = {"from_attributes": True}
 
