@@ -13,7 +13,6 @@ class User(Base):
     patronymic: Mapped[Optional[str]] = mapped_column(String(100))
     email: Mapped[str] = mapped_column(String(255), nullable=False, unique=True)
     password_hash: Mapped[str] = mapped_column(String(255), nullable=False)
-    email_verified: Mapped[bool] = mapped_column(Boolean, default=False)
     avatar_url: Mapped[Optional[str]] = mapped_column(String(255))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow, onupdate=datetime.utcnow)
@@ -21,3 +20,8 @@ class User(Base):
     goals: Mapped[list["Goal"]] = relationship("Goal", back_populates="user", cascade="all, delete-orphan")
     password_recoveries: Mapped[list["PasswordRecovery"]] = relationship("PasswordRecovery", back_populates="user", cascade="all, delete-orphan")
     messages: Mapped[list["Message"]] = relationship("Message", back_populates="user", cascade="all, delete-orphan")
+    
+    # conversations with the AI; normalized so each session can have multiple messages
+    ai_conversations: Mapped[list["AIConversation"]] = relationship(
+        "AIConversation", back_populates="user", cascade="all, delete-orphan"
+    )
