@@ -23,6 +23,11 @@ class Settings(BaseSettings):
     OLLAMA_BASE_URL: str = "http://localhost:11434"
     OLLAMA_TIMEOUT: int = 300
 
+    
+    PROXYAPI_KEY: Optional[str] = None
+    PROXYAPI_BASE_URL: str = "https://api.proxyapi.ru/openai/v1"
+    AI_MODEL: str = "gpt-4o"
+
     model_config = ConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",
