@@ -16,30 +16,15 @@ jwt_manager = JWTManager()
 async def delete_user_roadmap(
     roadmap_id: int,
     credentials: HTTPAuthorizationCredentials = Depends(security),
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
 ) -> dict:
-    
-    token = credentials.credentials
-    payload = jwt_manager.decode_token(token)
-    
-    if isinstance(payload, str):
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail=payload
-        )
-    
-    if payload.get("type") != "access":
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid token type"
-        )
-    
     try:
-        user_id = int(payload.get("sub"))
-    except (ValueError, TypeError):
+        sub = jwt_manager.verify_access_token(credentials.credentials)
+        user_id = int(sub)
+    except Exception as exc:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid token subject"
+            detail=str(exc),
         )
     
     roadmap_stmt = select(Roadmap).where(Roadmap.roadmap_id == roadmap_id)

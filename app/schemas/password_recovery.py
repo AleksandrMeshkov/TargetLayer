@@ -7,7 +7,7 @@ class PasswordRecoveryRequestSchema(BaseModel):
 
 
 class PasswordRecoveryConfirmSchema(BaseModel):
-    token: str = Field(..., min_length=64, max_length=64, description="Токен восстановления из письма")
+    
     new_password: str = Field(
         ...,
         min_length=8,

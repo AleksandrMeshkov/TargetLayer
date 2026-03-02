@@ -12,7 +12,7 @@ router = APIRouter(prefix="/user", tags=["user"])
 security = HTTPBearer()
 
 
-@router.get("/profile", response_model=UserPublicSchema, openapi_extra={"security": [{"Bearer": []}]})
+@router.get("/chek", response_model=UserPublicSchema, openapi_extra={"security": [{"Bearer": []}]})
 async def get_profile(
     credentials: HTTPAuthorizationCredentials = Security(security),
     current_user: User = Depends(get_current_user)

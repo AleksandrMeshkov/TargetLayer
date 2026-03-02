@@ -4,7 +4,6 @@ from .chat import Chat
 from .message import Message
 from .goal import Goal
 from .task import Task
-from .password_recovery import PasswordRecovery
 from .roadmap import Roadmap
 from .ai_conversation import AIConversation
 from .ai_message import AIMessage

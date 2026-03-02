@@ -91,20 +91,9 @@ class AuthService:
 		return {"access_token": access, "refresh_token": refresh, "token_type": "bearer"}
 
 	async def refresh_tokens(self, refresh_token: str) -> Optional[Dict[str, Optional[str]]]:
-		payload = self.jwt.decode_token(refresh_token)
-		if not isinstance(payload, dict):
-			return None
-		if payload.get("type") != "refresh":
-			return None
-		sub = payload.get("sub")
+		
 		try:
-			user_id = int(sub)
-		except Exception:
+			access, refresh = self.jwt.rotate_tokens(refresh_token)
+			return {"access_token": access, "refresh_token": refresh, "token_type": "bearer"}
+		except Exception:  
 			return None
-
-		q = await self.db.execute(select(User).where(User.user_id == user_id))
-		user = q.scalars().first()
-		if not user:
-			return None
-
-		return await self.create_tokens(user_id)

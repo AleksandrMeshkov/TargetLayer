@@ -16,51 +16,36 @@ jwt_manager = JWTManager()
 
 async def get_user_roadmaps(
     credentials: HTTPAuthorizationCredentials = Depends(security),
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
 ) -> list[Roadmap]:
-    
-    token = credentials.credentials
-    payload = jwt_manager.decode_token(token)
-    
-    if isinstance(payload, str):
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail=payload
-        )
-    
-    if payload.get("type") != "access":
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid token type"
-        )
-    
     try:
-        user_id = int(payload.get("sub"))
-    except (ValueError, TypeError):
+        sub = jwt_manager.verify_access_token(credentials.credentials)
+        user_id = int(sub)
+    except Exception as exc:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid token subject"
+            detail=str(exc),
         )
-    
+
     stmt = select(User).options(
         selectinload(User.goals).selectinload(Goal.roadmap).options(
             selectinload(Roadmap.tasks),
-            selectinload(Roadmap.goal)
+            selectinload(Roadmap.goal),
         )
     ).where(User.user_id == user_id)
-    
+
     result = await db.execute(stmt)
     user = result.scalar_one_or_none()
-    
+
     if not user:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="User not found"
+            detail="User not found",
         )
-    
-    roadmaps = []
+
+    roadmaps: list[Roadmap] = []
     for goal in user.goals:
         if goal.roadmap:
             roadmaps.append(goal.roadmap)
-    
+
     return roadmaps

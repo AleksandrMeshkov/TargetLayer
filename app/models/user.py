@@ -18,10 +18,8 @@ class User(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow, onupdate=datetime.utcnow)
     
     goals: Mapped[list["Goal"]] = relationship("Goal", back_populates="user", cascade="all, delete-orphan")
-    password_recoveries: Mapped[list["PasswordRecovery"]] = relationship("PasswordRecovery", back_populates="user", cascade="all, delete-orphan")
     messages: Mapped[list["Message"]] = relationship("Message", back_populates="user", cascade="all, delete-orphan")
     
-    # conversations with the AI; normalized so each session can have multiple messages
     ai_conversations: Mapped[list["AIConversation"]] = relationship(
         "AIConversation", back_populates="user", cascade="all, delete-orphan"
     )

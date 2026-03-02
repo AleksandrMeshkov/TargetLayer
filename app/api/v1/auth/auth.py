@@ -52,10 +52,10 @@ async def login(email: str, password: str, response: Response, db: AsyncSession 
     return tokens
 
 @router.post("/refresh", response_model=Token)
-async def refresh(response: Response, refresh_token: str | None = Cookie(None), db: AsyncSession = Depends(get_db)):
+async def refresh(response: Response, refresh_token: str | None = Cookie(None)):
     if not refresh_token:
         raise HTTPException(status_code=401, detail="Missing refresh token")
-    auth_service = AuthService(db)
+    auth_service = AuthService(None)  # db not used
     tokens = await auth_service.refresh_tokens(refresh_token)
     if not tokens:
         raise HTTPException(status_code=401, detail="Invalid refresh token")

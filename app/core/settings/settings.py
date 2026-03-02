@@ -17,7 +17,10 @@ class Settings(BaseSettings):
     SECRET_KEY: str
     ALGORITHM: str 
     ACCESS_TOKEN_EXPIRE_MINUTES: int
-    REFRESH_TOKEN_EXPIRE_HOURS: int 
+    REFRESH_TOKEN_EXPIRE_HOURS: int
+    RECOVERY_TOKEN_EXPIRE_HOURS: int = 1 
+
+    FRONTEND_URL: Optional[str] = None
 
     AI_PROVIDER: str = "ollama"
     OLLAMA_BASE_URL: str = "http://localhost:11434"

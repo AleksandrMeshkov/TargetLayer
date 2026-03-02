@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="utf-8" />
+    <title>Восстановление пароля</title>
+    <style>
+        body { font-family: Arial, sans-serif; line-height: 1.5; }
+        .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+        .button { display: inline-block; padding: 10px 20px; background:#008cba; color:#fff; text-decoration:none; border-radius:4px; }
+    </style>
+</head>
+<body>
+<div class="container">
+    <p>Здравствуйте!</p>
+    <p>Вы запросили восстановление пароля для вашего аккаунта на TargetLayer.</p>
+    <p>Ваш токен для восстановления:</p>
+    <p><strong>{{ token }}</strong></p>
+    <p>Или пройдите по ссылке:</p>
+    <p><a class="button" href="{{ url }}">Сбросить пароль</a></p>
+    <p>Если вы не запрашивали эту операцию, просто проигнорируйте это письмо.</p>
+    <p>С уважением,<br />Команда TargetLayer</p>
+</div>
+</body>
+</html>
