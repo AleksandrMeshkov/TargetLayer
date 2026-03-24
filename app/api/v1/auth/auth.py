@@ -8,6 +8,19 @@ from app.core.settings.settings import settings
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
+def _set_refresh_cookie(response: Response, refresh_token: str):
+    max_age = settings.REFRESH_TOKEN_EXPIRE_HOURS * 3600
+    secure = settings.ENVIRONMENT == "production"
+    response.set_cookie(
+        key="refresh_token",
+        value=refresh_token,
+        httponly=True,
+        secure=secure,  
+        samesite="lax",
+        path="/",
+        max_age=max_age,
+    )
+
 @router.post("/register", response_model=Token)
 async def register(user: UserRegister, response: Response, db: AsyncSession = Depends(get_db)):
     try:
@@ -18,14 +31,7 @@ async def register(user: UserRegister, response: Response, db: AsyncSession = De
         tokens = await auth_service.create_tokens(user_id)
         refresh = tokens.get("refresh_token")
         if refresh:
-            max_age = settings.REFRESH_TOKEN_EXPIRE_HOURS * 3600
-            response.set_cookie(
-                key="refresh_token",
-                value=refresh,
-                httponly=True,
-                samesite="lax",
-                max_age=max_age,
-            )
+            _set_refresh_cookie(response, refresh)
         tokens["refresh_token"] = None
         return tokens
     except ValueError as e:
@@ -40,14 +46,7 @@ async def login(user: UserLogin, response: Response, db: AsyncSession = Depends(
     tokens = await auth_service.create_tokens(user_id)
     refresh = tokens.get("refresh_token")
     if refresh:
-        max_age = settings.REFRESH_TOKEN_EXPIRE_HOURS * 3600
-        response.set_cookie(
-            key="refresh_token",
-            value=refresh,
-            httponly=True,
-            samesite="lax",
-            max_age=max_age,
-        )
+        _set_refresh_cookie(response, refresh)
     tokens["refresh_token"] = None
     return tokens
 
@@ -61,13 +60,18 @@ async def refresh(response: Response, refresh_token: str | None = Cookie(None)):
         raise HTTPException(status_code=401, detail="Invalid refresh token")
     refresh = tokens.get("refresh_token")
     if refresh:
-        max_age = settings.REFRESH_TOKEN_EXPIRE_HOURS * 3600
-        response.set_cookie(
-            key="refresh_token",
-            value=refresh,
-            httponly=True,
-            samesite="lax",
-            max_age=max_age,
-        )
+        _set_refresh_cookie(response, refresh)
     tokens["refresh_token"] = None
     return tokens
+
+@router.post("/logout")
+async def logout(response: Response):
+    secure = settings.ENVIRONMENT == "production"
+    response.delete_cookie(
+        key="refresh_token",
+        path="/",
+        secure=secure,
+        httponly=True,
+        samesite="lax",
+    )
+    return {"message": "Logout successful"}

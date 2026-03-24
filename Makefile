@@ -1,6 +1,6 @@
 up:
 	docker-compose up -d
-	@echo "✅ Контейнеры запущены: http://localhost:8000"
+	@echo " Контейнеры запущены: http://localhost:8000"
 
 down:
 	docker-compose down

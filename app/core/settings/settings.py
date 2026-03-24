@@ -21,12 +21,9 @@ class Settings(BaseSettings):
     RECOVERY_TOKEN_EXPIRE_HOURS: int = 1 
 
     FRONTEND_URL: Optional[str] = None
-
-    AI_PROVIDER: str = "ollama"
-    OLLAMA_BASE_URL: str = "http://localhost:11434"
-    OLLAMA_TIMEOUT: int = 300
-
     
+    ENVIRONMENT: str = "development" 
+
     PROXYAPI_KEY: Optional[str] = None
     PROXYAPI_BASE_URL: str = "https://api.proxyapi.ru/openai/v1"
     AI_MODEL: str = "gpt-4o"

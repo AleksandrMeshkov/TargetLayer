@@ -1,9 +1,11 @@
 from fastapi import FastAPI
 from fastapi.openapi.utils import get_openapi
+from fastapi.middleware.cors import CORSMiddleware
 from app.api.v1.auth import auth, password_recovery
 from app.api.v1.ai.ai_router import router as ai_router
 from app.api.v1.user_settings import user_settings, update_password
 from app.api.v1.roadmap import roadmap_router
+from app.core.settings.settings import settings
 import logging
 
 logging.basicConfig(level=logging.DEBUG)
@@ -13,6 +15,24 @@ app = FastAPI(
     title="TargetLayer API",
     description="Сервис декомпозиции целей с ИИ",
     version="0.1.0"
+)
+
+cors_origins = [
+    "http://localhost:3000",
+    "http://localhost:5173", 
+    "http://localhost:8000",
+]
+if settings.FRONTEND_URL:
+    cors_origins.append(settings.FRONTEND_URL)
+if settings.ENVIRONMENT == "production":
+    cors_origins = [settings.FRONTEND_URL] if settings.FRONTEND_URL else []
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=cors_origins,
+    allow_credentials=True, 
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 def custom_openapi():
@@ -44,6 +64,7 @@ app.include_router(auth.router)
 app.include_router(password_recovery.router)
 app.include_router(ai_router)
 app.include_router(user_settings.router)
+app.include_router(user_settings.users_router)
 app.include_router(update_password.router)
 app.include_router(roadmap_router.router)
 
