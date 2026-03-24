@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, status, Response, Cookie
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.schemas.auth import UserRegister, Token
+from app.schemas.auth import UserLogin, UserRegister, Token
 from app.services.user.auth_service import AuthService
 from app.core.database.database import get_db
 from app.core.settings.settings import settings
@@ -32,9 +32,9 @@ async def register(user: UserRegister, response: Response, db: AsyncSession = De
         raise HTTPException(status_code=400, detail=str(e))
 
 @router.post("/login", response_model=Token)
-async def login(email: str, password: str, response: Response, db: AsyncSession = Depends(get_db)):
+async def login(user: UserLogin, response: Response, db: AsyncSession = Depends(get_db)):
     auth_service = AuthService(db)
-    user_id = await auth_service.authenticate_email(email, password)
+    user_id = await auth_service.authenticate_email(user.email, user.password)
     if not user_id:
         raise HTTPException(status_code=401, detail="Invalid email or password")
     tokens = await auth_service.create_tokens(user_id)
