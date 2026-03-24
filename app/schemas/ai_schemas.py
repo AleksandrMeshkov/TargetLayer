@@ -36,7 +36,6 @@ class RoadmapSaveRequest(BaseModel):
 
 
 class DraftRoadmapResponse(BaseModel):
-    """Черновик roadmap с draft_id для дальнейшего редактирования."""
     draft_id: int
     goal_title: str
     goal_description: Optional[str] = None
@@ -48,7 +47,6 @@ class DraftRoadmapResponse(BaseModel):
 
 
 class DraftUpdateRequest(BaseModel):
-    """Запрос на обновление черновика с новым prompt."""
     prompt: str = Field(..., min_length=5, max_length=1000)
 
     model_config = {"from_attributes": True}

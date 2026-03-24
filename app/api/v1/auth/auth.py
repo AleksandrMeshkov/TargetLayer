@@ -6,7 +6,7 @@ from app.services.user.auth_service import AuthService
 from app.core.database.database import get_db
 from app.core.settings.settings import settings
 
-router = APIRouter(prefix="/auth", tags=["auth"])
+router = APIRouter(prefix="/api/v1/auth", tags=["auth"])
 
 def _set_refresh_cookie(response: Response, refresh_token: str):
     max_age = settings.REFRESH_TOKEN_EXPIRE_HOURS * 3600

@@ -16,7 +16,7 @@ from app.models.task import Task
 from app.schemas.ai_schemas import AIRoadmapRequest, AIRoadmapResponse, RoadmapSaveRequest
 
 
-router = APIRouter(prefix="/ai", tags=["ai"])
+router = APIRouter(prefix="/api/v1/ai", tags=["ai"])
 
 @router.get("/health", summary="Проверка доступности AI-сервиса")
 async def ai_health(

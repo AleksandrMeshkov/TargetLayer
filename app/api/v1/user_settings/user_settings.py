@@ -8,21 +8,12 @@ from app.schemas.update_user import UserNameSchema, UserPublicSchema, UserAvatar
 from app.services.user.update_username import UserService
 from app.models.user import User
 
-router = APIRouter(prefix="/user", tags=["user"])
-users_router = APIRouter(prefix="/users", tags=["users"])
+router = APIRouter(prefix="/api/v1/user", tags=["user"])
 security = HTTPBearer()
 
 
-@users_router.get("/me", response_model=UserPublicSchema, openapi_extra={"security": [{"Bearer": []}]})
+@router.get("/me", response_model=UserPublicSchema, openapi_extra={"security": [{"Bearer": []}]})
 async def get_current_profile(
-    credentials: HTTPAuthorizationCredentials = Security(security),
-    current_user: User = Depends(get_current_user)
-):
-    return current_user
-
-
-@router.get("/chek", response_model=UserPublicSchema, openapi_extra={"security": [{"Bearer": []}]})
-async def get_profile(
     credentials: HTTPAuthorizationCredentials = Security(security),
     current_user: User = Depends(get_current_user)
 ):

@@ -21,6 +21,7 @@ class Settings(BaseSettings):
     RECOVERY_TOKEN_EXPIRE_HOURS: int = 1 
 
     FRONTEND_URL: Optional[str] = None
+    CORS_ALLOW_ORIGINS: str = ""
     
     ENVIRONMENT: str = "development" 
 
@@ -45,5 +46,10 @@ class Settings(BaseSettings):
             password=self.POSTGRES_PASSWORD,
             path=f"/{self.POSTGRES_DB}"
         ))
+
+    @property
+    def cors_allow_origins(self) -> list[str]:
+        """Return normalized CORS origins from comma-separated env value."""
+        return [origin.strip() for origin in self.CORS_ALLOW_ORIGINS.split(",") if origin.strip()]
 
 settings = Settings()

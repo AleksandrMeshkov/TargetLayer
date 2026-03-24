@@ -8,7 +8,7 @@ from app.schemas.update_password_user import PasswordChangeSchema
 from app.services.password.password_service import PasswordService
 from app.models.user import User
 
-router = APIRouter(prefix="/password", tags=["password"])
+router = APIRouter(prefix="/api/v1/password", tags=["password"])
 security = HTTPBearer()
 
 
