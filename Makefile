@@ -8,9 +8,6 @@ down:
 logs:
 	docker-compose logs -f
 
-logs-ollama:
-	docker-compose logs -f ollama
-
 logs-api:
 	docker-compose logs -f api
 

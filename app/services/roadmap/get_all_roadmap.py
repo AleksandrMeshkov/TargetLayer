@@ -40,7 +40,7 @@ async def get_user_roadmaps(
     if not user:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="User not found",
+            detail="Пользователь не найден",
         )
 
     roadmaps: list[Roadmap] = []

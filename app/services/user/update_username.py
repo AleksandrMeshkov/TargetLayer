@@ -54,7 +54,7 @@ class UserService:
         user = result.scalars().first()
         
         if not user:
-            raise ValueError("User not found")
+            raise ValueError("Пользователь не найден")
 
         file_extension = ALLOWED_AVATAR_CONTENT_TYPES.get(avatar_file.content_type or "")
         if not file_extension:

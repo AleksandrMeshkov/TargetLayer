@@ -25,7 +25,7 @@ class Settings(BaseSettings):
     RECOVERY_TOKEN_EXPIRE_HOURS: int = 1 
 
     FRONTEND_URL: Optional[str] 
-    FRONTEND_RESET_PASSWORD_PATH: str = "/reset-password"
+    FRONTEND_RESET_PASSWORD_PATH: str 
     CORS_ALLOW_ORIGINS: str
     SERVER_BASE_URL: str
     UPLOADS_DIR: str 

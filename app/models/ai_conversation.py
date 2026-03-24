@@ -18,10 +18,8 @@ class AIConversation(Base):
         DateTime(timezone=True), default=datetime.utcnow, onupdate=datetime.utcnow
     )
 
-    # one user owns this conversation
     user: Mapped["User"] = relationship("User", back_populates="ai_conversations")
 
-    # One conversation contains many messages from both user and AI
     messages: Mapped[List["AIMessage"]] = relationship(
         "AIMessage", back_populates="conversation", cascade="all, delete-orphan"
     )

@@ -34,7 +34,7 @@ async def delete_user_roadmap(
     if not roadmap:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Roadmap not found"
+            detail="Роудмап не найден"
         )
     
     goal_stmt = select(Goal).where(
@@ -47,7 +47,7 @@ async def delete_user_roadmap(
     if not goal:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Roadmap not found or you don't have permission to delete it"
+            detail="Дорожная карта не найдена или у вас нет разрешения на ее удаление"
         )
     
     db.delete(roadmap)

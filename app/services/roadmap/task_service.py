@@ -15,13 +15,13 @@ async def _verify_roadmap_owner(db: AsyncSession, user_id: int, roadmap_id: int)
     res = await db.execute(stmt)
     roadmap = res.scalars().first()
     if not roadmap:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Roadmap not found")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Роудмап не найден")
 
     goal_stmt = select(Goal).where((Goal.goals_id == roadmap.goals_id) & (Goal.user_id == user_id))
     goal_res = await db.execute(goal_stmt)
     goal = goal_res.scalars().first()
     if not goal:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="You don't have access to this roadmap")
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="У вас нет доступа к этой дорожной карте")
 
     return roadmap
 
@@ -68,7 +68,7 @@ async def update_task_for_roadmap(
     res = await db.execute(stmt)
     task = res.scalars().first()
     if not task:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Task not found")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Задача не найдена")
 
     for key, val in data.items():
         if hasattr(task, key) and val is not None:
@@ -98,7 +98,7 @@ async def delete_task_for_roadmap(
     res = await db.execute(stmt)
     task = res.scalars().first()
     if not task:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Task not found")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Задача не найдена")
 
     await db.delete(task)
     await db.commit()
@@ -117,7 +117,7 @@ async def set_task_complete_for_roadmap(
     res = await db.execute(stmt)
     task = res.scalars().first()
     if not task:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Task not found")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Задача не найдена")
 
     task.completed = bool(completed)
     task.completed_at = datetime.utcnow() if completed else None
