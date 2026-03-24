@@ -15,6 +15,7 @@ logger = logging.getLogger("app")
 app = FastAPI(
     title="TargetLayer API",
     description="Сервис декомпозиции целей с ИИ",
+    version="0.1.0"
 )
 configure_cors(app)
 
@@ -30,6 +31,7 @@ def custom_openapi():
         title="TargetLayer API",
         description="Сервис декомпозиции целей с ИИ",
         routes=app.routes,
+        version="0.1.0"
     )
     
     openapi_schema["components"]["securitySchemes"] = {
