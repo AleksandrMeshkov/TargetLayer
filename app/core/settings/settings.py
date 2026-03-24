@@ -2,6 +2,9 @@ from pydantic_settings import BaseSettings
 from pydantic import ConfigDict
 from yarl import URL
 from typing import Optional
+from pathlib import Path
+
+BASE_DIR = Path(__file__).resolve().parents[3]
 
 class Settings(BaseSettings):
     POSTGRES_HOST: str
@@ -20,14 +23,17 @@ class Settings(BaseSettings):
     REFRESH_TOKEN_EXPIRE_HOURS: int
     RECOVERY_TOKEN_EXPIRE_HOURS: int = 1 
 
-    FRONTEND_URL: Optional[str] = None
-    CORS_ALLOW_ORIGINS: str = ""
+    FRONTEND_URL: Optional[str] 
+    CORS_ALLOW_ORIGINS: str
+    SERVER_BASE_URL: str
+    UPLOADS_DIR: str 
+    UPLOADS_URL_PREFIX: str 
     
-    ENVIRONMENT: str = "development" 
+    ENVIRONMENT: str 
 
-    PROXYAPI_KEY: Optional[str] = None
-    PROXYAPI_BASE_URL: str = "https://api.proxyapi.ru/openai/v1"
-    AI_MODEL: str = "gpt-4o"
+    PROXYAPI_KEY: Optional[str] 
+    PROXYAPI_BASE_URL: str
+    AI_MODEL: str 
 
     model_config = ConfigDict(
         env_file=".env",
@@ -49,7 +55,21 @@ class Settings(BaseSettings):
 
     @property
     def cors_allow_origins(self) -> list[str]:
-        """Return normalized CORS origins from comma-separated env value."""
         return [origin.strip() for origin in self.CORS_ALLOW_ORIGINS.split(",") if origin.strip()]
+
+    @property
+    def uploads_dir_path(self) -> Path:
+        uploads_path = Path(self.UPLOADS_DIR)
+        if uploads_path.is_absolute():
+            return uploads_path
+        return BASE_DIR / uploads_path
+
+    @property
+    def avatars_dir_path(self) -> Path:
+        return self.uploads_dir_path / "avatars"
+
+    @property
+    def server_base_url(self) -> str:
+        return self.SERVER_BASE_URL.rstrip("/")
 
 settings = Settings()

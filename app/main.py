@@ -1,10 +1,12 @@
 from fastapi import FastAPI
 from fastapi.openapi.utils import get_openapi
+from fastapi.staticfiles import StaticFiles
 from app.api.v1.auth import auth, password_recovery
 from app.api.v1.ai.ai_router import router as ai_router
 from app.api.v1.user_settings import user_settings, update_password
 from app.api.v1.roadmap import roadmap_router
 from app.core.settings.cors import configure_cors
+from app.core.settings.settings import settings
 import logging
 
 logging.basicConfig(level=logging.DEBUG)
@@ -16,6 +18,10 @@ app = FastAPI(
     version="0.1.0"
 )
 configure_cors(app)
+
+settings.uploads_dir_path.mkdir(parents=True, exist_ok=True)
+settings.avatars_dir_path.mkdir(parents=True, exist_ok=True)
+app.mount(settings.UPLOADS_URL_PREFIX, StaticFiles(directory=str(settings.uploads_dir_path)), name="uploads")
 
 def custom_openapi():
     if app.openapi_schema:
