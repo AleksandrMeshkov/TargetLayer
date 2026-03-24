@@ -3,6 +3,7 @@ from pydantic import ConfigDict
 from yarl import URL
 from typing import Optional
 from pathlib import Path
+from urllib.parse import urlencode
 
 BASE_DIR = Path(__file__).resolve().parents[3]
 
@@ -24,6 +25,7 @@ class Settings(BaseSettings):
     RECOVERY_TOKEN_EXPIRE_HOURS: int = 1 
 
     FRONTEND_URL: Optional[str] 
+    FRONTEND_RESET_PASSWORD_PATH: str = "/reset-password"
     CORS_ALLOW_ORIGINS: str
     SERVER_BASE_URL: str
     UPLOADS_DIR: str 
@@ -71,5 +73,13 @@ class Settings(BaseSettings):
     @property
     def server_base_url(self) -> str:
         return self.SERVER_BASE_URL.rstrip("/")
+
+    def build_frontend_recovery_url(self, token: str) -> str:
+        base = (self.FRONTEND_URL or self.server_base_url).rstrip("/")
+        path = self.FRONTEND_RESET_PASSWORD_PATH.strip()
+        if not path.startswith("/"):
+            path = f"/{path}"
+        query = urlencode({"token": token})
+        return f"{base}{path}?{query}"
 
 settings = Settings()

@@ -20,26 +20,30 @@ class MessageSender:
     async def send_recovery_link(self, email: str, token: str) -> bool:
         try:
             subject = "Восстановление пароля TargetLayer"
+            recovery_url = settings.build_frontend_recovery_url(token)
 
             if template_path.exists():
                 html = template_path.read_text(encoding="utf-8")
             else:
                 html = (
                     f"<p>Здравствуйте!</p>"
-                    f"<p>Токен восстановления: <strong>{token}</strong></p>"
+                    f"<p>Перейдите по ссылке для восстановления пароля:</p>"
+                    f"<p><a href=\"{recovery_url}\">Восстановить пароль</a></p>"
                 )
 
             html = html.replace("{{ token }}", token)
             if "{{ url }}" in html:
-                url = settings.FRONTEND_URL or ""
-                html = html.replace("{{ url }}", url)
+                html = html.replace("{{ url }}", recovery_url)
 
             message = MIMEMultipart("alternative")
             message["From"] = self.sender_email
             message["To"] = email
             message["Subject"] = subject
 
-            text_body = f"Ваш токен восстановления: {token}"
+            text_body = (
+                "Вы запросили восстановление пароля. "
+                f"Перейдите по ссылке: {recovery_url}"
+            )
             message.attach(MIMEText(text_body, "plain", "utf-8"))
             message.attach(MIMEText(html, "html", "utf-8"))
 
