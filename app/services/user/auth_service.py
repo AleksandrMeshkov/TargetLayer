@@ -7,8 +7,12 @@ from app.core.security.jwt import JWTManager
 from app.models.user import User
 from app.models.message import Message
 from app.models.chat import Chat
+from app.models.chat_participant import ChatParticipant
+from app.models.team import Team
+from app.models.team_member import TeamMember
 from app.models.roadmap import Roadmap
 from app.models.goal import Goal
+from app.models.roadmap_access import RoadmapAccess
 from app.models.task import Task
 
 
@@ -35,19 +39,36 @@ class AuthService:
 		self.db.add(user)
 		await self.db.flush()
 
+		team = Team(name=f"team-{user.user_id}")
+		self.db.add(team)
+		await self.db.flush()
+
+		membership = TeamMember(team_id=team.team_id, user_id=user.user_id, role="owner")
+		self.db.add(membership)
+		await self.db.flush()
+
 		goal = Goal(
 			user_id=user.user_id,
-			title="Default Goal", 
+			title="Default Goal",
 			description="Default goal for new user"
 		)
 		self.db.add(goal)
 		await self.db.flush()
 
 		roadmap = Roadmap(
+			team_id=team.team_id,
 			goals_id=goal.goals_id,
 			completed=False
 		)
 		self.db.add(roadmap)
+		await self.db.flush()
+
+		access = RoadmapAccess(
+			roadmap_id=roadmap.roadmap_id,
+			user_id=user.user_id,
+			permission="owner",
+		)
+		self.db.add(access)
 		await self.db.flush()
 
 		task = Task(
@@ -58,9 +79,15 @@ class AuthService:
 		self.db.add(task)
 		await self.db.flush()
 
-		chat = Chat()
+		chat = Chat(team_id=team.team_id, type="team")
 		self.db.add(chat)
 		await self.db.flush()
+
+		participant = ChatParticipant(
+			chat_id=chat.chat_id,
+			user_id=user.user_id,
+		)
+		self.db.add(participant)
 
 		message = Message(
 			content=f"Welcome message for {email}",

@@ -10,8 +10,6 @@ class TaskResponse(BaseModel):
     order_index: int
     completed: bool
     completed_at: Optional[datetime] = None
-    deadline_start: Optional[datetime] = None
-    deadline_end: Optional[datetime] = None
     created_at: datetime
 
     model_config = ConfigDict(from_attributes=True)
@@ -19,6 +17,7 @@ class TaskResponse(BaseModel):
 
 class GoalResponse(BaseModel):
     goals_id: int
+    user_id: int
     title: str
     description: Optional[str] = None
     created_at: datetime
@@ -28,6 +27,7 @@ class GoalResponse(BaseModel):
 
 class RoadmapResponse(BaseModel):
     roadmap_id: int
+    team_id: int
     goals_id: int
     goal: Optional[GoalResponse] = None
     tasks: list[TaskResponse] = []
@@ -49,8 +49,6 @@ class TaskCreate(BaseModel):
     title: str
     description: Optional[str] = None
     order_index: Optional[int] = 0
-    deadline_start: Optional[datetime] = None
-    deadline_end: Optional[datetime] = None
 
     model_config = ConfigDict()
 
@@ -59,8 +57,6 @@ class TaskUpdate(BaseModel):
     title: Optional[str] = None
     description: Optional[str] = None
     order_index: Optional[int] = None
-    deadline_start: Optional[datetime] = None
-    deadline_end: Optional[datetime] = None
     completed: Optional[bool] = None
 
     model_config = ConfigDict()

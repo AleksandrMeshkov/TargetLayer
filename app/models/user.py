@@ -16,9 +16,18 @@ class User(Base):
     avatar_url: Mapped[Optional[str]] = mapped_column(String(255))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow, onupdate=datetime.utcnow)
-    
+
     goals: Mapped[list["Goal"]] = relationship("Goal", back_populates="user", cascade="all, delete-orphan")
     messages: Mapped[list["Message"]] = relationship("Message", back_populates="user", cascade="all, delete-orphan")
+    roadmap_access_entries: Mapped[list["RoadmapAccess"]] = relationship(
+        "RoadmapAccess", back_populates="user", cascade="all, delete-orphan"
+    )
+    team_memberships: Mapped[list["TeamMember"]] = relationship(
+        "TeamMember", back_populates="user", cascade="all, delete-orphan"
+    )
+    chat_participations: Mapped[list["ChatParticipant"]] = relationship(
+        "ChatParticipant", back_populates="user", cascade="all, delete-orphan"
+    )
     
     ai_conversations: Mapped[list["AIConversation"]] = relationship(
         "AIConversation", back_populates="user", cascade="all, delete-orphan"

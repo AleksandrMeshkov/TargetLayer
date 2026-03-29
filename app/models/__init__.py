@@ -5,5 +5,10 @@ from .message import Message
 from .goal import Goal
 from .task import Task
 from .roadmap import Roadmap
+from .team import Team
+from .team_member import TeamMember
+from .roadmap_access import RoadmapAccess
+from .roadmap_copy import RoadmapCopy
+from .chat_participant import ChatParticipant
 from .ai_conversation import AIConversation
 from .ai_message import AIMessage

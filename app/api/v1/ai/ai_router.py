@@ -10,9 +10,13 @@ from app.services.ai_service.ai_chat_roadmap import ai_service
 from app.services.ai_service.ai_history import save_chat, fetch_history, create_conversation
 from app.services.user.get_my_user import get_current_user, get_optional_user
 from app.models.user import User
+from sqlalchemy import select
 from app.models.goal import Goal
 from app.models.roadmap import Roadmap
+from app.models.roadmap_access import RoadmapAccess
 from app.models.task import Task
+from app.models.team import Team
+from app.models.team_member import TeamMember
 from app.schemas.ai_schemas import AIRoadmapRequest, AIRoadmapResponse, RoadmapSaveRequest
 
 
@@ -45,34 +49,48 @@ async def ai_chat(
         if getattr(request, "conversation_id", None):
             conv_id = request.conversation_id
         try:
-            goal = Goal(user_id=current_user.user_id, title=result.get("goal_title"), description=result.get("goal_description"))
+            membership_stmt = select(TeamMember).where(TeamMember.user_id == current_user.user_id).order_by(TeamMember.id.asc())
+            membership_res = await db.execute(membership_stmt)
+            membership = membership_res.scalars().first()
+
+            if membership:
+                team_id = membership.team_id
+            else:
+                team = Team(name=f"team-{current_user.user_id}")
+                db.add(team)
+                await db.flush()
+                db.add(TeamMember(team_id=team.team_id, user_id=current_user.user_id, role="owner"))
+                team_id = team.team_id
+
+            goal = Goal(
+                user_id=current_user.user_id,
+                title=result.get("goal_title"),
+                description=result.get("goal_description"),
+            )
             db.add(goal)
             await db.flush()
 
-            roadmap = Roadmap(goals_id=goal.goals_id)
+            roadmap = Roadmap(team_id=team_id, goals_id=goal.goals_id, completed=False)
             db.add(roadmap)
             await db.flush()
+
+            access = RoadmapAccess(
+                roadmap_id=roadmap.roadmap_id,
+                user_id=current_user.user_id,
+                permission="owner",
+            )
+            db.add(access)
 
             tasks = result.get("tasks", [])
             for idx, t in enumerate(tasks):
                 title = t.get("title")
                 description = t.get("description")
                 order_index = t.get("order_index") if t.get("order_index") is not None else idx
-                deadline_offset = t.get("deadline_offset_days")
-                if deadline_offset is not None:
-                    deadline_start = datetime.utcnow()
-                    deadline_end = datetime.utcnow() + timedelta(days=int(deadline_offset))
-                else:
-                    deadline_start = None
-                    deadline_end = None
-
                 task = Task(
                     roadmap_id=roadmap.roadmap_id,
                     title=title,
                     description=description,
                     order_index=order_index,
-                    deadline_start=deadline_start,
-                    deadline_end=deadline_end,
                 )
                 db.add(task)
 

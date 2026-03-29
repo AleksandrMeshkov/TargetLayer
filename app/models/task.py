@@ -14,8 +14,6 @@ class Task(Base):
     order_index: Mapped[int] = mapped_column(Integer, default=0)
     completed: Mapped[bool] = mapped_column(Boolean, default=False)
     completed_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
-    deadline_start: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
-    deadline_end: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow)
     
     roadmap: Mapped["Roadmap"] = relationship("Roadmap", back_populates="tasks")

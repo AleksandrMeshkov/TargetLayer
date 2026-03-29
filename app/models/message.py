@@ -7,10 +7,11 @@ from .base import Base
 
 class Message(Base):
     __tablename__ = "messages"
-    
-    message_id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True) 
+
+    message_id: Mapped[int] = mapped_column("messages_id", primary_key=True, autoincrement=True)
     chat_id: Mapped[int] = mapped_column(Integer, ForeignKey("chats.chat_id", ondelete="CASCADE"), nullable=False)
     user_id: Mapped[int] = mapped_column(Integer, ForeignKey("users.user_id", ondelete="CASCADE"), nullable=False)
+    type: Mapped[str] = mapped_column(String(50), default="text", nullable=False)
     content: Mapped[str] = mapped_column(Text, nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow)
     

@@ -5,9 +5,8 @@ from sqlalchemy import select, delete
 
 from app.core.database.database import get_db
 from app.core.security.jwt import JWTManager
-from app.models.user import User
 from app.models.roadmap import Roadmap
-from app.models.goal import Goal
+from app.models.roadmap_access import RoadmapAccess
 
 security = HTTPBearer()
 jwt_manager = JWTManager()
@@ -37,16 +36,17 @@ async def delete_user_roadmap(
             detail="Роудмап не найден"
         )
     
-    goal_stmt = select(Goal).where(
-        (Goal.goals_id == roadmap.goals_id) &
-        (Goal.user_id == user_id)
+    access_stmt = select(RoadmapAccess).where(
+        (RoadmapAccess.roadmap_id == roadmap.roadmap_id)
+        & (RoadmapAccess.user_id == user_id)
+        & (RoadmapAccess.permission == "owner")
     )
-    goal_result = await db.execute(goal_stmt)
-    goal = goal_result.scalars().first()
+    access_result = await db.execute(access_stmt)
+    access = access_result.scalars().first()
     
-    if not goal:
+    if not access:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
+            status_code=status.HTTP_403_FORBIDDEN,
             detail="Дорожная карта не найдена или у вас нет разрешения на ее удаление"
         )
     

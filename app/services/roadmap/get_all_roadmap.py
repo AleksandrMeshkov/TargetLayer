@@ -6,9 +6,8 @@ from sqlalchemy.orm import selectinload
 
 from app.core.database.database import get_db
 from app.core.security.jwt import JWTManager
-from app.models.user import User
 from app.models.roadmap import Roadmap
-from app.models.goal import Goal
+from app.models.roadmap_access import RoadmapAccess
 
 security = HTTPBearer()
 jwt_manager = JWTManager()
@@ -27,25 +26,13 @@ async def get_user_roadmaps(
             detail=str(exc),
         )
 
-    stmt = select(User).options(
-        selectinload(User.goals).selectinload(Goal.roadmap).options(
-            selectinload(Roadmap.tasks),
-            selectinload(Roadmap.goal),
-        )
-    ).where(User.user_id == user_id)
+    stmt = (
+        select(Roadmap)
+        .join(RoadmapAccess, RoadmapAccess.roadmap_id == Roadmap.roadmap_id)
+        .options(selectinload(Roadmap.tasks), selectinload(Roadmap.goal))
+        .where(RoadmapAccess.user_id == user_id, RoadmapAccess.permission.in_(["viewer", "editor", "owner"]))
+        .order_by(Roadmap.updated_at.desc())
+    )
 
     result = await db.execute(stmt)
-    user = result.scalar_one_or_none()
-
-    if not user:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Пользователь не найден",
-        )
-
-    roadmaps: list[Roadmap] = []
-    for goal in user.goals:
-        if goal.roadmap:
-            roadmaps.append(goal.roadmap)
-
-    return roadmaps
+    return list(result.scalars().unique().all())

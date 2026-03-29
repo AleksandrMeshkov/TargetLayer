@@ -74,8 +74,6 @@ async def create_task(
         title=task_data.title,
         description=task_data.description,
         order_index=task_data.order_index,
-        deadline_start=task_data.deadline_start,
-        deadline_end=task_data.deadline_end,
     )
     return task
 
