@@ -12,6 +12,7 @@ class JWTManager:
         self.access_expire = settings.ACCESS_TOKEN_EXPIRE_MINUTES
         self.refresh_expire = settings.REFRESH_TOKEN_EXPIRE_HOURS
         self.recovery_expire = getattr(settings, "RECOVERY_TOKEN_EXPIRE_HOURS", 1)
+        self.invite_expire = getattr(settings, "INVITE_TOKEN_EXPIRE_HOURS", 24)
 
     def _create_token(
         self, subject: str, expires_delta: timedelta, token_type: str
@@ -33,6 +34,11 @@ class JWTManager:
     def create_recovery_token(self, subject: str) -> str:
         return self._create_token(
             subject, timedelta(hours=self.recovery_expire), "recovery"
+        )
+
+    def create_invite_token(self, subject: str) -> str:
+        return self._create_token(
+            subject, timedelta(hours=self.invite_expire), "invite"
         )
 
     def _decode(self, token: str) -> dict[str, Any]:
@@ -58,6 +64,12 @@ class JWTManager:
     def verify_recovery_token(self, token: str) -> str:
         payload = self._decode(token)
         if payload.get("type") != "recovery":
+            raise InvalidTokenError("wrong token type")
+        return payload.get("sub")
+
+    def verify_invite_token(self, token: str) -> str:
+        payload = self._decode(token)
+        if payload.get("type") != "invite":
             raise InvalidTokenError("wrong token type")
         return payload.get("sub")
 
