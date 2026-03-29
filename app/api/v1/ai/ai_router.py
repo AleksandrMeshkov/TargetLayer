@@ -16,6 +16,7 @@ from app.models.roadmap import Roadmap
 from app.models.roadmap_access import RoadmapAccess
 from app.models.task import Task
 from app.models.team import Team
+from app.models.team_role import TeamRole
 from app.models.team_member import TeamMember
 from app.schemas.ai_schemas import AIRoadmapRequest, AIRoadmapResponse, RoadmapSaveRequest
 
@@ -59,7 +60,21 @@ async def ai_chat(
                 team = Team(name=f"team-{current_user.user_id}")
                 db.add(team)
                 await db.flush()
-                db.add(TeamMember(team_id=team.team_id, user_id=current_user.user_id, role="owner"))
+                owner_role_stmt = select(TeamRole).where(TeamRole.name == "owner")
+                owner_role_res = await db.execute(owner_role_stmt)
+                owner_role = owner_role_res.scalar_one_or_none()
+                if owner_role is None:
+                    owner_role = TeamRole(name="owner")
+                    db.add(owner_role)
+                    await db.flush()
+
+                db.add(
+                    TeamMember(
+                        team_id=team.team_id,
+                        user_id=current_user.user_id,
+                        team_role_id=owner_role.team_role_id,
+                    )
+                )
                 team_id = team.team_id
 
             goal = Goal(

@@ -3,7 +3,6 @@ from pydantic import BaseModel, EmailStr
 from app.schemas.password_common import PasswordInput, StrongPassword
 
 class UserRegister(BaseModel):
-    username: str
     email: EmailStr
     password: StrongPassword
     name: str

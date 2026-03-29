@@ -9,6 +9,7 @@ from app.models.message import Message
 from app.models.chat import Chat
 from app.models.chat_participant import ChatParticipant
 from app.models.team import Team
+from app.models.team_role import TeamRole
 from app.models.team_member import TeamMember
 from app.models.roadmap import Roadmap
 from app.models.goal import Goal
@@ -22,7 +23,7 @@ class AuthService:
 		self.jwt = JWTManager()
 
 	async def register_email(
-		self, email: str, password: str, username: str, name: str, surname: str, patronymic: str | None = None
+		self, email: str, password: str, name: str, surname: str, patronymic: str | None = None
 	) -> int:
 		q = await self.db.execute(select(User).where(User.email == email))
 		existing = q.scalars().first()
@@ -43,7 +44,19 @@ class AuthService:
 		self.db.add(team)
 		await self.db.flush()
 
-		membership = TeamMember(team_id=team.team_id, user_id=user.user_id, role="owner")
+		owner_role_stmt = select(TeamRole).where(TeamRole.name == "owner")
+		owner_role_result = await self.db.execute(owner_role_stmt)
+		owner_role = owner_role_result.scalar_one_or_none()
+		if owner_role is None:
+			owner_role = TeamRole(name="owner")
+			self.db.add(owner_role)
+			await self.db.flush()
+
+		membership = TeamMember(
+			team_id=team.team_id,
+			user_id=user.user_id,
+			team_role_id=owner_role.team_role_id,
+		)
 		self.db.add(membership)
 		await self.db.flush()
 

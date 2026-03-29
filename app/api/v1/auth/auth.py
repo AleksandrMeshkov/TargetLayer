@@ -26,7 +26,7 @@ async def register(user: UserRegister, response: Response, db: AsyncSession = De
     try:
         auth_service = AuthService(db)
         user_id = await auth_service.register_email(
-            user.email, user.password, user.username, user.name, user.surname, user.patronymic
+            user.email, user.password, user.name, user.surname, user.patronymic
         )
         tokens = await auth_service.create_tokens(user_id)
         refresh = tokens.get("refresh_token")

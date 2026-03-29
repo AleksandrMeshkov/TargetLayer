@@ -3,6 +3,7 @@ from fastapi.openapi.utils import get_openapi
 from fastapi.staticfiles import StaticFiles
 from app.api.v1.auth import auth, password_recovery
 from app.api.v1.ai.ai_router import router as ai_router
+from app.api.v1.team.team_router import router as team_router
 from app.api.v1.user_settings import user_settings, update_password
 from app.api.v1.roadmap import roadmap_router
 from app.core.settings.cors import configure_cors
@@ -51,6 +52,7 @@ app.openapi = custom_openapi
 app.include_router(auth.router)
 app.include_router(password_recovery.router)
 app.include_router(ai_router)
+app.include_router(team_router)
 app.include_router(user_settings.router)
 app.include_router(update_password.router)
 app.include_router(roadmap_router.router)
