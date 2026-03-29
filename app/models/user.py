@@ -8,6 +8,7 @@ class User(Base):
     __tablename__ = "users"
     
     user_id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    username: Mapped[str] = mapped_column(String(100), nullable=False, unique=True)
     name: Mapped[str] = mapped_column(String(100), nullable=False)
     surname: Mapped[str] = mapped_column(String(100), nullable=False)
     patronymic: Mapped[Optional[str]] = mapped_column(String(100))
@@ -31,4 +32,7 @@ class User(Base):
     
     ai_conversations: Mapped[list["AIConversation"]] = relationship(
         "AIConversation", back_populates="user", cascade="all, delete-orphan"
+    )
+    created_team_access_links: Mapped[list["TeamAccessLink"]] = relationship(
+        "TeamAccessLink", back_populates="created_by_user", cascade="all, delete-orphan"
     )

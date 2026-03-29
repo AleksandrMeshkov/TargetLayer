@@ -6,6 +6,7 @@ from .goal import Goal
 from .task import Task
 from .roadmap import Roadmap
 from .team import Team
+from .team_access_link import TeamAccessLink
 from .team_role import TeamRole
 from .team_member import TeamMember
 from .roadmap_access import RoadmapAccess

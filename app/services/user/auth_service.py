@@ -1,5 +1,5 @@
 from typing import Optional, Dict
-from sqlalchemy import select
+from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.security.password import hash_password, verify_password
@@ -23,18 +23,50 @@ class AuthService:
 		self.jwt = JWTManager()
 
 	async def register_email(
-		self, email: str, password: str, name: str, surname: str, patronymic: str | None = None
+		self,
+		username: str,
+		email: str,
+		password: str,
+		name: str,
+		surname: str,
+		patronymic: str | None = None,
 	) -> int:
-		q = await self.db.execute(select(User).where(User.email == email))
+		normalized_username = (username or "").strip()
+		normalized_email = (email or "").strip().lower()
+		if not normalized_username:
+			raise ValueError("Username is required")
+		if not normalized_email:
+			raise ValueError("Email is required")
+
+		username_q = await self.db.execute(
+			select(User).where(func.lower(User.username) == normalized_username.lower())
+		)
+		existing_username = username_q.scalars().first()
+		if existing_username:
+			# Handle duplicate submit gracefully: if same account and password, treat as success.
+			if (
+				existing_username.email.lower() == normalized_email
+				and verify_password(password, existing_username.password_hash or "")
+			):
+				return int(existing_username.user_id)
+			raise ValueError("Username already taken")
+
+		q = await self.db.execute(select(User).where(func.lower(User.email) == normalized_email))
 		existing = q.scalars().first()
 		if existing:
+			if (
+				existing.username.lower() == normalized_username.lower()
+				and verify_password(password, existing.password_hash or "")
+			):
+				return int(existing.user_id)
 			raise ValueError("Email already registered")
 
 		user = User(
+			username=normalized_username,
 			name=name, 
 			surname=surname, 
 			patronymic=patronymic,
-			email=email,
+			email=normalized_email,
 			password_hash=hash_password(password)
 		)
 		self.db.add(user)

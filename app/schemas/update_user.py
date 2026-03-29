@@ -1,4 +1,4 @@
-from pydantic import BaseModel, Field, EmailStr, HttpUrl, Field
+from pydantic import BaseModel, Field
 from typing import Optional
 from datetime import datetime
 
@@ -17,12 +17,20 @@ class UserAvatarSchema(BaseModel):
 
 class UserPublicSchema(BaseModel):
     user_id: int
+    username: str
     name: str
     surname: str
     patronymic: Optional[str] = None
     avatar_url: Optional[str] = None
     created_at: datetime
     updated_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class UserSearchResponse(BaseModel):
+    users: list[UserPublicSchema]
+    total: int
 
 
     

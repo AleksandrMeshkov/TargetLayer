@@ -12,6 +12,7 @@ from app.services.team_service.create_team import create_team as create_team_ser
 from app.services.team_service.delete_team import delete_team as delete_team_service
 from app.services.team_service.get_team_members import get_team_members
 from app.services.team_service.get_user_teams import get_user_teams
+from app.services.team_service.invite_team_create import accept_team_invite, create_team_invite_link
 from app.services.team_service.rename_team import rename_team as rename_team_service
 from app.services.user.get_my_user import get_current_user
 
@@ -56,7 +57,68 @@ class TeamMemberListResponse(BaseModel):
 	model_config = ConfigDict(from_attributes=True)
 
 
+class TeamInviteCreateRequest(BaseModel):
+	permission: str = Field(default="member", min_length=1, max_length=32)
+	uses_left: int = Field(default=1, ge=1, le=100)
+
+
+class TeamInviteCreateResponse(BaseModel):
+	token: str
+	team_id: int
+	permission: str
+	uses_left: int | None
+	expires_at: datetime
+
+
+class TeamInviteAcceptRequest(BaseModel):
+	token: str = Field(min_length=1)
+
+
+class TeamInviteAcceptResponse(BaseModel):
+	team_id: int
+	user_id: int
+	team_role_id: int
+	joined_at: datetime
+	status: str
+
+
 router = APIRouter(prefix="/api/v1/teams", tags=["teams"])
+
+
+@router.post(
+	"/{team_id}/invite-links",
+	response_model=TeamInviteCreateResponse,
+	status_code=status.HTTP_201_CREATED,
+	openapi_extra={"security": [{"Bearer": []}]},
+)
+async def create_invite_link(
+	team_id: int = Path(..., gt=0),
+	payload: TeamInviteCreateRequest = ...,
+	current_user: User = Security(get_current_user),
+	db: AsyncSession = Depends(get_db),
+) -> TeamInviteCreateResponse:
+	invite = await create_team_invite_link(
+		db,
+		current_user,
+		team_id,
+		permission=payload.permission,
+		uses_left=payload.uses_left,
+	)
+	return TeamInviteCreateResponse(**invite)
+
+
+@router.post(
+	"/invite/accept",
+	response_model=TeamInviteAcceptResponse,
+	openapi_extra={"security": [{"Bearer": []}]},
+)
+async def accept_invite_link(
+	payload: TeamInviteAcceptRequest,
+	current_user: User = Security(get_current_user),
+	db: AsyncSession = Depends(get_db),
+) -> TeamInviteAcceptResponse:
+	result = await accept_team_invite(db, current_user, payload.token)
+	return TeamInviteAcceptResponse(**result)
 
 
 @router.get(

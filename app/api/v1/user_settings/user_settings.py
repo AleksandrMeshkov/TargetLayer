@@ -4,12 +4,25 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.services.user.get_my_user import get_current_user
 from app.core.database.database import get_db
-from app.schemas.update_user import UserNameSchema, UserPublicSchema
+from app.schemas.update_user import UserNameSchema, UserPublicSchema, UserSearchResponse
+from app.services.user.search_username import search_users_by_username
 from app.services.user.update_username import UserService
 from app.models.user import User
 
 router = APIRouter(prefix="/api/v1/user", tags=["user"])
 security = HTTPBearer()
+
+
+@router.get("/search", response_model=UserSearchResponse, openapi_extra={"security": [{"Bearer": []}]})
+async def search_users(
+    username: str,
+    limit: int = 50,
+    _current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    normalized_limit = max(1, min(limit, 100))
+    users = await search_users_by_username(db, username, normalized_limit)
+    return UserSearchResponse(users=users, total=len(users))
 
 
 @router.get("/me", response_model=UserPublicSchema, openapi_extra={"security": [{"Bearer": []}]})
