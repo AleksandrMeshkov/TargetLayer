@@ -40,6 +40,7 @@ StrongPassword = Annotated[
 
 
 class PasswordWithConfirmationSchema(BaseModel):
+    old_password: PasswordInput = Field(..., description="Текущий пароль")
     new_password: StrongPassword = Field(..., description="Новый пароль")
     confirm_password: str = Field(..., min_length=1, description="Подтверждение нового пароля")
 

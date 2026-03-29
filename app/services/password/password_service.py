@@ -1,10 +1,9 @@
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
-from sqlalchemy.orm import selectinload
 
 from app.models.user import User
 from app.schemas.update_password_user import PasswordChangeSchema
-from app.core.security.password import hash_password  
+from app.core.security.password import hash_password, verify_password
 
 
 class PasswordService:
@@ -24,6 +23,9 @@ class PasswordService:
         
         if not user:
             raise ValueError("Пользователь не найден")
+
+        if not user.password_hash or not verify_password(password_data.old_password, user.password_hash):
+            raise ValueError("Старый пароль указан неверно")
         
         hashed_password = hash_password(password_data.new_password)
         
@@ -38,9 +40,6 @@ class PasswordService:
         user_id: int,
         plain_password: str
     ) -> bool:
-        
-        from app.core.security.password import verify_password
-        
         stmt = select(User).where(User.user_id == user_id)
         
         result = await self.db.execute(stmt)
