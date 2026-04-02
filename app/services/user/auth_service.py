@@ -43,7 +43,6 @@ class AuthService:
 		)
 		existing_username = username_q.scalars().first()
 		if existing_username:
-			# Handle duplicate submit gracefully: if same account and password, treat as success.
 			if (
 				existing_username.email.lower() == normalized_email
 				and verify_password(password, existing_username.password_hash or "")

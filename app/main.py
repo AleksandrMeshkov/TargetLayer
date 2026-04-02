@@ -6,7 +6,7 @@ from app.api.v1.ai.ai_router import router as ai_router
 from app.api.v1.team.team_router import router as team_router
 from app.api.v1.user_settings import user_settings, update_password
 from app.api.v1.roadmap import roadmap_router
-from app.core.settings.cors import configure_cors
+
 from app.core.settings.settings import settings
 import logging
 
@@ -18,7 +18,15 @@ app = FastAPI(
     description="Сервис декомпозиции целей с ИИ",
     version="0.1.0"
 )
-configure_cors(app)
+
+from fastapi.middleware.cors import CORSMiddleware
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=settings.cors_allow_origins,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 settings.uploads_dir_path.mkdir(parents=True, exist_ok=True)
 settings.avatars_dir_path.mkdir(parents=True, exist_ok=True)

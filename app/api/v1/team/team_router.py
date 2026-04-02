@@ -1,9 +1,8 @@
+from app.services.team_service.out_user_team import leave_team
 from datetime import datetime
-
 from fastapi import APIRouter, Depends, Path, Security, status
 from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy.ext.asyncio import AsyncSession
-
 from app.core.database.database import get_db
 from app.models.team import Team
 from app.models.team_member import TeamMember
@@ -161,6 +160,31 @@ async def create_team(
 ) -> Team:
 	return await create_team_service(db, current_user, payload.name)
 
+@router.put(
+	"/{team_id}",
+	response_model=TeamResponse,
+	openapi_extra={"security": [{"Bearer": []}]},
+)
+async def rename_team(
+	team_id: int = Path(..., gt=0),
+	payload: TeamUpdateRequest = ...,
+	current_user: User = Security(get_current_user),
+	db: AsyncSession = Depends(get_db),
+) -> Team:
+	return await rename_team_service(db, current_user, team_id, payload.name)
+
+@router.delete(
+	"/{team_id}/leave",
+	response_model=dict,
+	openapi_extra={"security": [{"Bearer": []}]},
+)
+async def leave_team(
+	team_id: int = Path(..., gt=0),
+	current_user: User = Security(get_current_user),
+	db: AsyncSession = Depends(get_db),
+) -> dict:
+	await leave_team(db, current_user, team_id)
+	return {"status": "success", "message": "You have left the team"}
 
 @router.delete(
 	"/{team_id}",
@@ -174,17 +198,3 @@ async def delete_team(
 ) -> dict:
 	await delete_team_service(db, current_user, team_id)
 	return {"status": "success", "message": "Team deleted"}
-
-
-@router.put(
-	"/{team_id}",
-	response_model=TeamResponse,
-	openapi_extra={"security": [{"Bearer": []}]},
-)
-async def rename_team(
-	team_id: int = Path(..., gt=0),
-	payload: TeamUpdateRequest = ...,
-	current_user: User = Security(get_current_user),
-	db: AsyncSession = Depends(get_db),
-) -> Team:
-	return await rename_team_service(db, current_user, team_id, payload.name)
