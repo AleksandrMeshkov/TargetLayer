@@ -28,11 +28,11 @@ async def create_team(db: AsyncSession, user: User, name: str) -> Team:
 	db.add(team)
 	await db.flush()
 
-	owner_role = await get_or_create_team_role(db, "owner")
+	admin_role = await get_or_create_team_role(db, "Администратор")
 	owner_membership = TeamMember(
 		team_id=team.team_id,
 		user_id=user.user_id,
-		team_role_id=owner_role.team_role_id,
+		team_role_id=admin_role.team_role_id,
 	)
 	db.add(owner_membership)
 	await db.commit()

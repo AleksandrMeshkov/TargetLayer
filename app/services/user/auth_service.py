@@ -75,11 +75,11 @@ class AuthService:
 		self.db.add(team)
 		await self.db.flush()
 
-		owner_role_stmt = select(TeamRole).where(TeamRole.name == "owner")
+		owner_role_stmt = select(TeamRole).where(TeamRole.name == "Администратор")
 		owner_role_result = await self.db.execute(owner_role_stmt)
 		owner_role = owner_role_result.scalar_one_or_none()
 		if owner_role is None:
-			owner_role = TeamRole(name="owner")
+			owner_role = TeamRole(name="Администратор")
 			self.db.add(owner_role)
 			await self.db.flush()
 

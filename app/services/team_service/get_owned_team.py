@@ -24,7 +24,7 @@ async def get_owned_team(db: AsyncSession, user: User, team_id: int) -> Team:
 		.where(
 			TeamMember.team_id == team_id,
 			TeamMember.user_id == user.user_id,
-			TeamRole.name == "owner",
+			TeamRole.name == "Администратор",
 		)
 	)
 	owner_result = await db.execute(owner_stmt)
@@ -32,7 +32,7 @@ async def get_owned_team(db: AsyncSession, user: User, team_id: int) -> Team:
 	if not owner:
 		raise HTTPException(
 			status_code=status.HTTP_403_FORBIDDEN,
-			detail="Only team owner can manage this team",
+			detail="Только Администратор может управлять командой",
 		)
 
 	return team

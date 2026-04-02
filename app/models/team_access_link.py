@@ -22,7 +22,7 @@ class TeamAccessLink(Base):
         index=True,
     )
     token_hash: Mapped[str] = mapped_column(String(128), nullable=False, unique=True, index=True)
-    permission: Mapped[str] = mapped_column(String(32), nullable=False, default="member")
+    permission: Mapped[str] = mapped_column(String(32), nullable=False, default="Участник")
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     used_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
     uses_left: Mapped[Optional[int]] = mapped_column(Integer, nullable=True, default=1)

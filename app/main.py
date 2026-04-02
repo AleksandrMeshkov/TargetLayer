@@ -6,6 +6,7 @@ from app.api.v1.ai.ai_router import router as ai_router
 from app.api.v1.team.team_router import router as team_router
 from app.api.v1.user_settings import user_settings, update_password
 from app.api.v1.roadmap import roadmap_router
+from app.api.v1.chat.chat_router import router as chat_router
 
 from app.core.settings.settings import settings
 import logging
@@ -64,6 +65,7 @@ app.include_router(team_router)
 app.include_router(user_settings.router)
 app.include_router(update_password.router)
 app.include_router(roadmap_router.router)
+app.include_router(chat_router)
 
 @app.get("/", tags=["Root"])
 async def root():

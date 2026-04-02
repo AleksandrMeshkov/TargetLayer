@@ -23,14 +23,19 @@ async def create_team_invite_link(
 	db: AsyncSession,
 	current_user: User,
 	team_id: int,
-	permission: str = "member",
 	uses_left: int = 1,
 ) -> dict:
 	await get_owned_team(db, current_user, team_id)
 
-	normalized_permission = (permission or "member").strip().lower()
-	if not normalized_permission:
-		normalized_permission = "member"
+	# По текущему правилу: создатель команды = "Администратор",
+	# все присоединившиеся пользователи = "Участник".
+	# Поэтому любые инвайты создаём только с permission="Участник".
+	permission = "Участник"
+
+	# Роли в проекте: только "Администратор" и "Участник".
+	# Поддерживаем legacy значения owner/member.
+	role = await get_or_create_team_role(db, permission)
+	normalized_permission = role.name
 
 	normalized_uses = max(1, uses_left)
 	jwt_manager = JWTManager()
@@ -126,7 +131,10 @@ async def accept_team_invite(
 			"status": "already_member",
 		}
 
-	role = await get_or_create_team_role(db, access_link.permission)
+	# По текущему правилу: все, кто присоединился к команде (не создатель) — "Участник".
+	role = await get_or_create_team_role(db, "Участник")
+	if access_link.permission != role.name:
+		access_link.permission = role.name
 	membership = TeamMember(
 		team_id=access_link.team_id,
 		user_id=current_user.user_id,

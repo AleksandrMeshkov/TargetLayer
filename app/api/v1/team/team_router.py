@@ -1,4 +1,4 @@
-from app.services.team_service.out_user_team import leave_team
+from app.services.team_service.out_user_team import leave_team as leave_team_service
 from datetime import datetime
 from fastapi import APIRouter, Depends, Path, Security, status
 from pydantic import BaseModel, ConfigDict, Field
@@ -13,6 +13,7 @@ from app.services.team_service.get_team_members import get_team_members
 from app.services.team_service.get_user_teams import get_user_teams
 from app.services.team_service.invite_team_create import accept_team_invite, create_team_invite_link
 from app.services.team_service.rename_team import rename_team as rename_team_service
+from app.services.team_service.update_member_role import update_team_member_role
 from app.services.user.get_my_user import get_current_user
 
 
@@ -57,7 +58,6 @@ class TeamMemberListResponse(BaseModel):
 
 
 class TeamInviteCreateRequest(BaseModel):
-	permission: str = Field(default="member", min_length=1, max_length=32)
 	uses_left: int = Field(default=1, ge=1, le=100)
 
 
@@ -81,6 +81,10 @@ class TeamInviteAcceptResponse(BaseModel):
 	status: str
 
 
+class TeamMemberRoleUpdateRequest(BaseModel):
+	role: str = Field(min_length=1, max_length=50)
+
+
 router = APIRouter(prefix="/api/v1/teams", tags=["teams"])
 
 
@@ -100,7 +104,6 @@ async def create_invite_link(
 		db,
 		current_user,
 		team_id,
-		permission=payload.permission,
 		uses_left=payload.uses_left,
 	)
 	return TeamInviteCreateResponse(**invite)
@@ -183,8 +186,30 @@ async def leave_team(
 	current_user: User = Security(get_current_user),
 	db: AsyncSession = Depends(get_db),
 ) -> dict:
-	await leave_team(db, current_user, team_id)
+	await leave_team_service(db, current_user, team_id)
 	return {"status": "success", "message": "You have left the team"}
+
+
+@router.patch(
+	"/{team_id}/users/{user_id}/role",
+	response_model=TeamMemberResponse,
+	openapi_extra={"security": [{"Bearer": []}]},
+)
+async def update_member_role(
+	team_id: int = Path(..., gt=0),
+	user_id: int = Path(..., gt=0),
+	payload: TeamMemberRoleUpdateRequest = ...,
+	current_user: User = Security(get_current_user),
+	db: AsyncSession = Depends(get_db),
+) -> TeamMember:
+	member = await update_team_member_role(
+		db,
+		current_user,
+		team_id,
+		user_id,
+		payload.role,
+	)
+	return member
 
 @router.delete(
 	"/{team_id}",
