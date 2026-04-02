@@ -30,7 +30,6 @@ async def update_goal_in_roadmap(
             detail=str(exc),
         )
     
-    # Get roadmap
     roadmap_stmt = select(Roadmap).where(Roadmap.roadmap_id == roadmap_id)
     roadmap_result = await db.execute(roadmap_stmt)
     roadmap = roadmap_result.scalars().first()

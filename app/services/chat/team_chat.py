@@ -13,7 +13,6 @@ from app.models.team_member import TeamMember
 
 
 async def get_or_create_team_chat(db: AsyncSession, *, team_id: int, user_id: int) -> Chat:
-	# Проверка членства
 	member_stmt = select(TeamMember.id).where(
 		TeamMember.team_id == team_id,
 		TeamMember.user_id == user_id,
@@ -26,7 +25,6 @@ async def get_or_create_team_chat(db: AsyncSession, *, team_id: int, user_id: in
 	existing_res = await db.execute(existing_stmt)
 	existing = existing_res.scalar_one_or_none()
 	if existing:
-		# гарантируем, что пользователь участник (на случай если создали раньше без него)
 		participant_stmt = select(ChatParticipant.id).where(
 			ChatParticipant.chat_id == existing.chat_id,
 			ChatParticipant.user_id == user_id,

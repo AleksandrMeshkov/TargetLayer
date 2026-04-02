@@ -15,7 +15,6 @@ async def update_team_member_role(
 	target_user_id: int,
 	new_role_name: str,
 ) -> TeamMember:
-	# Only team admin can change roles
 	await get_owned_team(db, current_user, team_id)
 
 	stmt = select(TeamMember).where(

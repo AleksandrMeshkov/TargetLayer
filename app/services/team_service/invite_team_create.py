@@ -27,13 +27,7 @@ async def create_team_invite_link(
 ) -> dict:
 	await get_owned_team(db, current_user, team_id)
 
-	# По текущему правилу: создатель команды = "Администратор",
-	# все присоединившиеся пользователи = "Участник".
-	# Поэтому любые инвайты создаём только с permission="Участник".
 	permission = "Участник"
-
-	# Роли в проекте: только "Администратор" и "Участник".
-	# Поддерживаем legacy значения owner/member.
 	role = await get_or_create_team_role(db, permission)
 	normalized_permission = role.name
 
@@ -131,7 +125,6 @@ async def accept_team_invite(
 			"status": "already_member",
 		}
 
-	# По текущему правилу: все, кто присоединился к команде (не создатель) — "Участник".
 	role = await get_or_create_team_role(db, "Участник")
 	if access_link.permission != role.name:
 		access_link.permission = role.name

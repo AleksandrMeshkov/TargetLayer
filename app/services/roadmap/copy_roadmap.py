@@ -8,17 +8,14 @@ from app.models.roadmap_copy import RoadmapCopy
 from datetime import datetime
 
 async def copy_roadmap(db: AsyncSession, user_id: int, roadmap_id: int):
-	# Получаем оригинальный роудмап
 	orig_roadmap = await db.get(Roadmap, roadmap_id)
 	if not orig_roadmap:
 		raise HTTPException(status_code=404, detail="Оригинальный роудмап не найден")
 
-	# Получаем goal
 	orig_goal = orig_roadmap.goal
 	if not orig_goal:
 		raise HTTPException(status_code=404, detail="Goal не найден")
 
-	# Копируем goal
 	new_goal = Goal(
 		user_id=user_id,
 		title=orig_goal.title,
@@ -28,7 +25,6 @@ async def copy_roadmap(db: AsyncSession, user_id: int, roadmap_id: int):
 	db.add(new_goal)
 	await db.flush()
 
-	# Копируем роудмап (team_id=None, goals_id=new_goal.goals_id)
 	new_roadmap = Roadmap(
 		team_id=None,
 		goals_id=new_goal.goals_id,
@@ -39,7 +35,6 @@ async def copy_roadmap(db: AsyncSession, user_id: int, roadmap_id: int):
 	db.add(new_roadmap)
 	await db.flush()
 
-	# Копируем задачи
 	for orig_task in orig_roadmap.tasks:
 		new_task = Task(
 			roadmap_id=new_roadmap.roadmap_id,
@@ -51,7 +46,6 @@ async def copy_roadmap(db: AsyncSession, user_id: int, roadmap_id: int):
 		)
 		db.add(new_task)
 
-	# Записываем в roadmap_copies
 	roadmap_copy = RoadmapCopy(
 		user_id=user_id,
 		original_roadmap_id=roadmap_id,
