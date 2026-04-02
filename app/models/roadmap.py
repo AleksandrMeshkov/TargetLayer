@@ -8,7 +8,7 @@ class Roadmap(Base):
     __tablename__ = "roadmaps"
 
     roadmap_id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
-    team_id: Mapped[int] = mapped_column(Integer, ForeignKey("teams.team_id", ondelete="CASCADE"), nullable=False, index=True)
+    team_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("teams.team_id", ondelete="CASCADE"), nullable=True, index=True)
     goals_id: Mapped[int] = mapped_column(Integer, ForeignKey("goals.goals_id", ondelete="CASCADE"), nullable=False, unique=True)
     completed: Mapped[bool] = mapped_column(Boolean, default=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow)

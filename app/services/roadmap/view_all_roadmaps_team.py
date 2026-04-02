@@ -1,0 +1,8 @@
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select
+from app.models.roadmap import Roadmap
+
+async def get_team_roadmaps(db: AsyncSession, team_id: int) -> list[Roadmap]:
+	stmt = select(Roadmap).where(Roadmap.team_id == team_id)
+	result = await db.execute(stmt)
+	return list(result.scalars().all())

@@ -27,7 +27,7 @@ class GoalResponse(BaseModel):
 
 class RoadmapResponse(BaseModel):
     roadmap_id: int
-    team_id: int
+    team_id: int | None
     goals_id: int
     goal: Optional[GoalResponse] = None
     tasks: list[TaskResponse] = []

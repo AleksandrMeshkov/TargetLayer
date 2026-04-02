@@ -49,73 +49,47 @@ async def ai_chat(
         conv_id = None
         if getattr(request, "conversation_id", None):
             conv_id = request.conversation_id
-        try:
-            membership_stmt = select(TeamMember).where(TeamMember.user_id == current_user.user_id).order_by(TeamMember.id.asc())
-            membership_res = await db.execute(membership_stmt)
-            membership = membership_res.scalars().first()
 
-            if membership:
-                team_id = membership.team_id
-            else:
-                team = Team(name=f"team-{current_user.user_id}")
-                db.add(team)
-                await db.flush()
-                owner_role_stmt = select(TeamRole).where(TeamRole.name == "owner")
-                owner_role_res = await db.execute(owner_role_stmt)
-                owner_role = owner_role_res.scalar_one_or_none()
-                if owner_role is None:
-                    owner_role = TeamRole(name="owner")
-                    db.add(owner_role)
-                    await db.flush()
+        # Всегда создаём личный роудмап (team_id=None)
+        goal = Goal(
+            user_id=current_user.user_id,
+            title=result.get("goal_title"),
+            description=result.get("goal_description"),
+        )
+        db.add(goal)
+        await db.flush()
 
-                db.add(
-                    TeamMember(
-                        team_id=team.team_id,
-                        user_id=current_user.user_id,
-                        team_role_id=owner_role.team_role_id,
-                    )
-                )
-                team_id = team.team_id
+        roadmap = Roadmap(team_id=None, goals_id=goal.goals_id, completed=False)
+        db.add(roadmap)
+        await db.flush()
 
-            goal = Goal(
-                user_id=current_user.user_id,
-                title=result.get("goal_title"),
-                description=result.get("goal_description"),
-            )
-            db.add(goal)
-            await db.flush()
+        access = RoadmapAccess(
+            roadmap_id=roadmap.roadmap_id,
+            user_id=current_user.user_id,
+            permission="owner",
+        )
+        db.add(access)
 
-            roadmap = Roadmap(team_id=team_id, goals_id=goal.goals_id, completed=False)
-            db.add(roadmap)
-            await db.flush()
-
-            access = RoadmapAccess(
+        tasks = result.get("tasks", [])
+        for idx, t in enumerate(tasks):
+            title = t.get("title")
+            description = t.get("description")
+            order_index = t.get("order_index") if t.get("order_index") is not None else idx
+            task = Task(
                 roadmap_id=roadmap.roadmap_id,
-                user_id=current_user.user_id,
-                permission="owner",
+                title=title,
+                description=description,
+                order_index=order_index,
             )
-            db.add(access)
+            db.add(task)
 
-            tasks = result.get("tasks", [])
-            for idx, t in enumerate(tasks):
-                title = t.get("title")
-                description = t.get("description")
-                order_index = t.get("order_index") if t.get("order_index") is not None else idx
-                task = Task(
-                    roadmap_id=roadmap.roadmap_id,
-                    title=title,
-                    description=description,
-                    order_index=order_index,
-                )
-                db.add(task)
 
-            await db.commit()
-        except Exception:
-            await db.rollback()
-            raise
-
+        await db.commit()
         await save_chat(db, current_user.user_id, request.prompt, ai_text, conversation_id=conv_id)
         return AIRoadmapResponse(**result)
+    except Exception:
+        await db.rollback()
+        raise
     except ValueError as e:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,

@@ -1,3 +1,7 @@
+from app.services.roadmap.view_all_roadmaps_team import get_team_roadmaps
+from app.services.roadmap.share_my_roadmap import share_roadmap_with_team
+from app.services.roadmap.copy_roadmap import copy_roadmap
+from pydantic import BaseModel
 from fastapi import APIRouter, Depends, HTTPException, status, Security, Path
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -54,6 +58,18 @@ async def get_tasks_by_roadmap(
     tasks = await get_tasks_for_roadmap(db, int(current_user.user_id), roadmap_id)
     return tasks
 
+@router.get(
+    "/team/{team_id}",
+    response_model=RoadmapsListResponse,
+    openapi_extra={"security": [{"Bearer": []}]}
+)
+async def get_roadmaps_by_team(
+    team_id: int = Path(..., gt=0, description="ID команды"),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    roadmaps = await get_team_roadmaps(db, team_id)
+    return RoadmapsListResponse(roadmaps=roadmaps, total=len(roadmaps))
 
 @router.post(
     "/{roadmap_id}/tasks",
@@ -77,6 +93,35 @@ async def create_task(
     )
     return task
 
+class ShareRoadmapRequest(BaseModel):
+    team_id: int
+
+@router.post(
+    "/{roadmap_id}/share-to-team",
+    response_model=dict,
+    openapi_extra={"security": [{"Bearer": []}]}
+)
+async def share_roadmap_to_team(
+    roadmap_id: int = Path(..., gt=0, description="ID роудмапа"),
+    payload: ShareRoadmapRequest = None,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    result = await share_roadmap_with_team(db, current_user.user_id, roadmap_id, payload.team_id)
+    return result
+
+@router.post(
+    "/{roadmap_id}/copy",
+    response_model=dict,
+    openapi_extra={"security": [{"Bearer": []}]}
+)
+async def copy_roadmap_to_user(
+    roadmap_id: int = Path(..., gt=0, description="ID роудмапа для копирования"),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    result = await copy_roadmap(db, current_user.user_id, roadmap_id)
+    return result
 
 @router.put(
     "/{roadmap_id}/tasks/{task_id}",
