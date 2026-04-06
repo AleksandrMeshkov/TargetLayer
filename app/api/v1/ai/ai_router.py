@@ -8,6 +8,7 @@ from app.core.database.database import get_db
 from app.services.ai_service.ai_helth import check_ai_health
 from app.services.ai_service.ai_chat_roadmap import ai_service
 from app.services.ai_service.ai_history import save_chat, fetch_history, create_conversation
+from app.services.ai_service.delite_history_in_chat import delete_ai_conversation
 from app.services.user.get_my_user import get_current_user, get_optional_user
 from app.models.user import User
 from sqlalchemy import select
@@ -130,3 +131,16 @@ async def ai_list_conversations(
         {"conversation_id": c["conversation_id"], "created_at": c["created_at"], "updated_at": c["updated_at"]}
         for c in history
     ]
+
+
+@router.delete(
+	"/conversations/{conversation_id}",
+	summary="Удалить чат с AI",
+	openapi_extra={"security": [{"Bearer": []}]},
+)
+async def ai_delete_conversation(
+	conversation_id: int,
+	current_user: User = Security(get_current_user),
+	db: AsyncSession = Depends(get_db),
+):
+	return await delete_ai_conversation(db, current_user.user_id, conversation_id)

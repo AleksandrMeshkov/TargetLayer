@@ -41,20 +41,6 @@ class TeamMemberListResponse(BaseModel):
 	total: int
 
 	model_config = ConfigDict(from_attributes=True)
-
-
-class TeamInviteCreateRequest(BaseModel):
-	uses_left: int = Field(default=1, ge=1, le=100)
-
-
-class TeamInviteCreateResponse(BaseModel):
-	token: str
-	team_id: int
-	permission: str
-	uses_left: int | None
-	expires_at: datetime
-
-
 class TeamInviteAcceptRequest(BaseModel):
 	token: str = Field(min_length=1)
 
@@ -65,6 +51,17 @@ class TeamInviteAcceptResponse(BaseModel):
 	team_role_id: int
 	joined_at: datetime
 	status: str
+
+
+class TeamInviteEmailRequest(BaseModel):
+	user_id: int = Field(gt=0)
+
+
+class TeamInviteEmailResponse(BaseModel):
+	status: str
+	email: str
+	team_id: int
+	expires_at: datetime
 
 
 class TeamMemberRoleUpdateRequest(BaseModel):

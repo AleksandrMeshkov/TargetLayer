@@ -10,48 +10,45 @@ from app.services.team_service.create_team import create_team as create_team_ser
 from app.services.team_service.delete_team import delete_team as delete_team_service
 from app.services.team_service.get_team_members import get_team_members
 from app.services.team_service.get_user_teams import get_user_teams
-from app.services.team_service.invite_team_create import accept_team_invite, create_team_invite_link
+from app.services.team_service.send_team_invite_email import send_team_invite_email
 from app.services.team_service.rename_team import rename_team as rename_team_service
 from app.services.team_service.update_member_role import update_team_member_role
 from app.services.user.get_my_user import get_current_user
+from app.core.settings.settings import settings
+from fastapi.responses import RedirectResponse
 
 
 router = APIRouter(prefix="/api/v1/teams", tags=["teams"])
 
 
-@router.post(
-	"/{team_id}/invite-links",
-	response_model=team_schemas.TeamInviteCreateResponse,
-	status_code=status.HTTP_201_CREATED,
-	openapi_extra={"security": [{"Bearer": []}]},
-)
-async def create_invite_link(
-	team_id: int = Path(..., gt=0),
-	payload: team_schemas.TeamInviteCreateRequest = ...,
-	current_user: User = Security(get_current_user),
-	db: AsyncSession = Depends(get_db),
-) -> team_schemas.TeamInviteCreateResponse:
-	invite = await create_team_invite_link(
-		db,
-		current_user,
-		team_id,
-		uses_left=payload.uses_left,
-	)
-	return team_schemas.TeamInviteCreateResponse(**invite)
-
-
-@router.post(
+@router.get(
 	"/invite/accept",
-	response_model=team_schemas.TeamInviteAcceptResponse,
+	status_code=status.HTTP_302_FOUND,
+)
+async def accept_invite_link_redirect(token: str):
+	frontend_url = settings.build_frontend_team_invite_url(token)
+	return RedirectResponse(url=frontend_url, status_code=status.HTTP_302_FOUND)
+
+
+@router.post(
+	"/{team_id}/invite-email",
+	response_model=team_schemas.TeamInviteEmailResponse,
+	status_code=status.HTTP_200_OK,
 	openapi_extra={"security": [{"Bearer": []}]},
 )
-async def accept_invite_link(
-	payload: team_schemas.TeamInviteAcceptRequest,
+async def invite_user_by_email(
+	team_id: int = Path(..., gt=0),
+	payload: team_schemas.TeamInviteEmailRequest = ..., 
 	current_user: User = Security(get_current_user),
 	db: AsyncSession = Depends(get_db),
-) -> team_schemas.TeamInviteAcceptResponse:
-	result = await accept_team_invite(db, current_user, payload.token)
-	return team_schemas.TeamInviteAcceptResponse(**result)
+) -> team_schemas.TeamInviteEmailResponse:
+	result = await send_team_invite_email(
+		db=db,
+		current_user=current_user,
+		team_id=team_id,
+		invited_user_id=payload.user_id,
+	)
+	return team_schemas.TeamInviteEmailResponse(**result)
 
 
 @router.get(

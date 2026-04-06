@@ -27,6 +27,7 @@ class Settings(BaseSettings):
 
     FRONTEND_URL: Optional[str] 
     FRONTEND_RESET_PASSWORD_PATH: str 
+    FRONTEND_TEAM_INVITE_PATH: str = "/invite"
     CORS_ALLOW_ORIGINS: str
     SERVER_BASE_URL: str
     UPLOADS_DIR: str 
@@ -80,6 +81,20 @@ class Settings(BaseSettings):
         path = self.FRONTEND_RESET_PASSWORD_PATH.strip()
         if not path.startswith("/"):
             path = f"/{path}"
+        query = urlencode({"token": token})
+        return f"{base}{path}?{query}"
+
+    def build_frontend_team_invite_url(self, token: str) -> str:
+        base = (self.FRONTEND_URL or self.server_base_url).rstrip("/")
+        path = (self.FRONTEND_TEAM_INVITE_PATH or "/invite").strip()
+        if not path.startswith("/"):
+            path = f"/{path}"
+        query = urlencode({"token": token})
+        return f"{base}{path}?{query}"
+
+    def build_backend_team_invite_accept_url(self, token: str) -> str:
+        base = self.server_base_url
+        path = "/api/v1/teams/invite/accept"
         query = urlencode({"token": token})
         return f"{base}{path}?{query}"
 

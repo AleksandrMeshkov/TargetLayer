@@ -1,5 +1,6 @@
 from datetime import datetime, timedelta, timezone
 from typing import Any
+import secrets
 from jwt import encode, decode, ExpiredSignatureError, InvalidTokenError
 from app.core.settings.settings import settings
 
@@ -76,3 +77,21 @@ class JWTManager:
     def rotate_tokens(self, refresh_token: str) -> tuple[str, str]:
         subject = self.verify_refresh_token(refresh_token)
         return self.create_access_token(subject), self.create_refresh_token(subject)
+
+
+class InviteJWTManager(JWTManager):
+
+    def create_team_invite_token(self, team_id: int) -> str:
+        nonce = secrets.token_urlsafe(24)
+        subject = f"team:{team_id}:{nonce}"
+        return self.create_invite_token(subject)
+
+    def verify_team_invite_token(self, token: str) -> int:
+        subject = self.verify_invite_token(token)
+        parts = (subject or "").split(":")
+        if len(parts) < 3 or parts[0] != "team":
+            raise InvalidTokenError("wrong invite subject")
+        try:
+            return int(parts[1])
+        except ValueError as exc:
+            raise InvalidTokenError("wrong invite subject") from exc
