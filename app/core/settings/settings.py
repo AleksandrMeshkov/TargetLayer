@@ -39,6 +39,11 @@ class Settings(BaseSettings):
     PROXYAPI_BASE_URL: str
     AI_MODEL: str 
 
+    REFRESH_COOKIE_SAMESITE: Optional[str] = None
+    REFRESH_COOKIE_SECURE: Optional[bool] = None
+    REFRESH_COOKIE_DOMAIN: Optional[str] = None
+    REFRESH_COOKIE_PATH: str = "/"
+
     model_config = ConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",
@@ -75,6 +80,37 @@ class Settings(BaseSettings):
     @property
     def server_base_url(self) -> str:
         return self.SERVER_BASE_URL.rstrip("/")
+
+    @property
+    def refresh_cookie_samesite(self) -> str:
+        if self.REFRESH_COOKIE_SAMESITE:
+            return self.REFRESH_COOKIE_SAMESITE.strip().lower()
+
+        
+        if (self.ENVIRONMENT or "").lower() == "production":
+            return "lax"
+        return "none" if self.server_base_url.lower().startswith("https://") else "lax"
+
+    @property
+    def refresh_cookie_secure(self) -> bool:
+        if self.REFRESH_COOKIE_SECURE is not None:
+            return bool(self.REFRESH_COOKIE_SECURE)
+
+        if self.refresh_cookie_samesite == "none":
+            return True
+        return (self.ENVIRONMENT or "").lower() == "production"
+
+    @property
+    def refresh_cookie_domain(self) -> Optional[str]:
+        if not self.REFRESH_COOKIE_DOMAIN:
+            return None
+        domain = self.REFRESH_COOKIE_DOMAIN.strip()
+        return domain or None
+
+    @property
+    def refresh_cookie_path(self) -> str:
+        path = (self.REFRESH_COOKIE_PATH or "/").strip()
+        return path if path.startswith("/") else f"/{path}"
 
     def build_frontend_recovery_url(self, token: str) -> str:
         base = (self.FRONTEND_URL or self.server_base_url).rstrip("/")
