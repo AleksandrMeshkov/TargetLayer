@@ -49,8 +49,11 @@ async def delete_user_roadmap(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Дорожная карта не найдена или у вас нет разрешения на ее удаление"
         )
-    
-    db.delete(roadmap)
+
+    await db.execute(
+        delete(RoadmapAccess).where(RoadmapAccess.roadmap_id == roadmap.roadmap_id)
+    )
+    await db.delete(roadmap)
     await db.commit()
     
     return {
