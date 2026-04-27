@@ -10,7 +10,6 @@ from fastapi import WebSocket
 class ChatWebSocketManager:
 	def __init__(self) -> None:
 		self._lock = asyncio.Lock()
-		# chat_id -> { websocket -> user_id }
 		self._connections: DefaultDict[int, dict[WebSocket, int]] = defaultdict(dict)
 
 	async def connect(self, *, chat_id: int, user_id: int, websocket: WebSocket) -> None:
@@ -19,10 +18,7 @@ class ChatWebSocketManager:
 			self._connections[chat_id][websocket] = user_id
 
 	async def disconnect(self, *, chat_id: int, user_id: int, websocket: WebSocket) -> bool:
-		"""Remove a connection.
-
-		Returns True if the user still has any active connections in this chat.
-		"""
+		
 		async with self._lock:
 			room = self._connections.get(chat_id)
 			if not room:
