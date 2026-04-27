@@ -9,10 +9,14 @@ from app.models.chat import Chat
 from app.models.message import Message
 from app.models.user import User
 from app.schemas import chat as chat_schemas
-from app.services.chat.team_chat import get_or_create_team_chat
+from app.services.chat.team_chat import get_or_create_team_chat as get_or_create_team_chat_service
 from app.services.chat.group_chat_service import create_group_chat
 from app.services.chat.message_service import delete_chat_message, list_chat_messages, send_chat_message
-from app.services.chat.participant_service import leave_chat, list_chat_participants, list_my_chats
+from app.services.chat.participant_service import (
+	leave_chat as leave_chat_service,
+	list_chat_participants,
+	list_my_chats,
+)
 from app.services.user.get_my_user import get_current_user
 
 
@@ -58,12 +62,12 @@ async def get_my_chats(
 	response_model=chat_schemas.ChatResponse,
 	openapi_extra={"security": [{"Bearer": []}]},
 )
-async def get_or_create_team_chat(
+async def get_or_create_team_chat_endpoint(
 	team_id: int = Path(..., gt=0),
 	current_user: User = Security(get_current_user),
 	db: AsyncSession = Depends(get_db),
 ) -> Chat:
-	chat = await get_or_create_team_chat(db, team_id=team_id, user_id=current_user.user_id)
+	chat = await get_or_create_team_chat_service(db, team_id=team_id, user_id=current_user.user_id)
 	return chat
 
 
@@ -137,10 +141,10 @@ async def delete_message(
 	response_model=dict,
 	openapi_extra={"security": [{"Bearer": []}]},
 )
-async def leave_chat(
+async def leave_chat_endpoint(
 	chat_id: int = Path(..., gt=0),
 	current_user: User = Security(get_current_user),
 	db: AsyncSession = Depends(get_db),
 ) -> dict:
-	await leave_chat(db, chat_id=chat_id, user_id=current_user.user_id)
+	await leave_chat_service(db, chat_id=chat_id, user_id=current_user.user_id)
 	return {"status": "success", "message": "Вы вышли из чата"}
