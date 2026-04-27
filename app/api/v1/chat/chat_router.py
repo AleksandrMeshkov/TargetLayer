@@ -1,14 +1,17 @@
 
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, Path, Security, status
+from fastapi import APIRouter, Depends, Path, Query, Security, WebSocket, WebSocketDisconnect, status
+from fastapi import HTTPException
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.database.database import get_db
+from app.core.database.database import AsyncSessionLocal, get_db
+from app.core.security.jwt import JWTManager
 from app.models.chat import Chat
-from app.models.message import Message
 from app.models.user import User
 from app.schemas import chat as chat_schemas
+from app.services.chat.chat_permissions import ensure_user_is_chat_participant
 from app.services.chat.team_chat import get_or_create_team_chat as get_or_create_team_chat_service
 from app.services.chat.group_chat_service import create_group_chat
 from app.services.chat.message_service import delete_chat_message, list_chat_messages, send_chat_message
@@ -18,9 +21,13 @@ from app.services.chat.participant_service import (
 	list_my_chats,
 )
 from app.services.user.get_my_user import get_current_user
+from app.services.chat.ws_manager import chat_ws_manager
 
 
 router = APIRouter(prefix="/api/v1/chats", tags=["chats"])
+
+
+jwt_manager = JWTManager()
 
 
 @router.post(
@@ -72,20 +79,6 @@ async def get_or_create_team_chat_endpoint(
 
 
 @router.get(
-	"/{chat_id}/messages",
-	response_model=chat_schemas.MessagesListResponse,
-	openapi_extra={"security": [{"Bearer": []}]},
-)
-async def get_chat_messages(
-	chat_id: int = Path(..., gt=0),
-	current_user: User = Security(get_current_user),
-	db: AsyncSession = Depends(get_db),
-) -> chat_schemas.MessagesListResponse:
-	messages = await list_chat_messages(db, chat_id=chat_id, user_id=current_user.user_id)
-	return chat_schemas.MessagesListResponse(messages=messages, total=len(messages))
-
-
-@router.get(
 	"/{chat_id}/participants",
 	response_model=chat_schemas.ChatParticipantsListResponse,
 	openapi_extra={"security": [{"Bearer": []}]},
@@ -99,26 +92,6 @@ async def get_chat_participants(
 	return chat_schemas.ChatParticipantsListResponse(participants=participants, total=len(participants))
 
 
-@router.post(
-	"/{chat_id}/messages",
-	response_model=chat_schemas.MessageResponse,
-	status_code=status.HTTP_201_CREATED,
-	openapi_extra={"security": [{"Bearer": []}]},
-)
-async def post_chat_message(
-	payload: chat_schemas.MessageCreateRequest,
-	chat_id: int = Path(..., gt=0),
-	current_user: User = Security(get_current_user),
-	db: AsyncSession = Depends(get_db),
-) -> Message:
-	msg = await send_chat_message(
-		db,
-		chat_id=chat_id,
-		user_id=current_user.user_id,
-		content=payload.content,
-		message_type=payload.type,
-	)
-	return msg
 
 
 @router.delete(
@@ -148,3 +121,159 @@ async def leave_chat_endpoint(
 ) -> dict:
 	await leave_chat_service(db, chat_id=chat_id, user_id=current_user.user_id)
 	return {"status": "success", "message": "Вы вышли из чата"}
+
+
+@router.websocket("/{chat_id}/ws")
+async def chat_websocket(
+	websocket: WebSocket,
+	chat_id: int,
+	token: str | None = Query(default=None),
+	limit: int = Query(default=50, ge=1, le=200),
+) -> None:
+	if not token:
+		await websocket.close(code=1008)
+		return
+
+	try:
+		sub = jwt_manager.verify_access_token(token)
+		user_id = int(sub)
+	except Exception:
+		await websocket.close(code=1008)
+		return
+
+	async with AsyncSessionLocal() as db:
+		stmt = select(User).where(User.user_id == user_id)
+		res = await db.execute(stmt)
+		user = res.scalar_one_or_none()
+		if not user:
+			await websocket.close(code=1008)
+			return
+		try:
+			await ensure_user_is_chat_participant(db, chat_id=chat_id, user_id=user_id)
+		except HTTPException:
+			await websocket.close(code=1008)
+			return
+
+	before_online_user_ids = await chat_ws_manager.get_online_user_ids(chat_id=chat_id)
+	await chat_ws_manager.connect(chat_id=chat_id, user_id=user_id, websocket=websocket)
+	after_online_user_ids = await chat_ws_manager.get_online_user_ids(chat_id=chat_id)
+	await websocket.send_json({"event": "online_users", "data": {"user_ids": after_online_user_ids}})
+	if user_id not in before_online_user_ids:
+		await chat_ws_manager.broadcast(
+			chat_id=chat_id,
+			message={"event": "presence", "data": {"user_id": user_id, "status": "online"}},
+			exclude_user_id=user_id,
+		)
+
+	try:
+		async with AsyncSessionLocal() as db:
+			messages = await list_chat_messages(db, chat_id=chat_id, user_id=user_id)
+			if limit and len(messages) > limit:
+				messages = messages[-limit:]
+			payload = [
+				chat_schemas.MessageResponse.model_validate(m).model_dump(mode="json")
+				for m in messages
+			]
+			await websocket.send_json({"event": "history", "data": {"messages": payload, "total": len(payload)}})
+	except Exception:
+		await websocket.send_json({"event": "history", "data": {"messages": [], "total": 0}})
+
+	try:
+		while True:
+			try:
+				raw = await websocket.receive_json()
+			except Exception:
+				await websocket.send_json({"event": "error", "detail": "Invalid JSON"})
+				continue
+
+			event: str | None = None
+			data = raw
+			if isinstance(raw, dict):
+				event = raw.get("event")
+				data = raw.get("data", raw)
+
+			# Backward-compatible: if client sends just the message payload
+			if event in (None, "message"):
+				try:
+					msg_in = chat_schemas.MessageCreateRequest.model_validate(data)
+				except Exception:
+					await websocket.send_json({"event": "error", "detail": "Invalid message payload"})
+					continue
+
+				try:
+					async with AsyncSessionLocal() as db:
+						msg = await send_chat_message(
+							db,
+							chat_id=chat_id,
+							user_id=user_id,
+							content=msg_in.content,
+							message_type=msg_in.type,
+						)
+				except HTTPException as exc:
+					await websocket.send_json({"event": "error", "detail": exc.detail})
+					continue
+
+				msg_out = chat_schemas.MessageResponse.model_validate(msg).model_dump(mode="json")
+				delivered_user_ids = await chat_ws_manager.broadcast(
+					chat_id=chat_id,
+					message={"event": "message", "data": msg_out},
+					exclude_user_id=user_id,
+				)
+				await websocket.send_json({"event": "message_ack", "data": msg_out})
+				if delivered_user_ids:
+					await websocket.send_json(
+						{
+							"event": "message_status",
+							"data": {
+								"message_id": msg_out.get("message_id"),
+								"status": "delivered",
+								"user_ids": sorted(delivered_user_ids),
+							},
+						}
+					)
+				continue
+
+			if event == "typing":
+				is_typing = False
+				if isinstance(data, dict):
+					is_typing = bool(data.get("is_typing", True))
+				await chat_ws_manager.broadcast(
+					chat_id=chat_id,
+					message={"event": "typing", "data": {"user_id": user_id, "is_typing": is_typing}},
+					exclude_user_id=user_id,
+				)
+				continue
+
+			if event == "read":
+				message_id = None
+				if isinstance(data, dict):
+					message_id = data.get("message_id")
+				try:
+					message_id_int = int(message_id)
+				except Exception:
+					await websocket.send_json({"event": "error", "detail": "Invalid read payload"})
+					continue
+				await chat_ws_manager.broadcast(
+					chat_id=chat_id,
+					message={
+						"event": "message_status",
+						"data": {"message_id": message_id_int, "status": "read", "user_id": user_id},
+					},
+				)
+				continue
+
+			if event == "ping":
+				await websocket.send_json({"event": "pong"})
+				continue
+
+			await websocket.send_json({"event": "error", "detail": "Unknown event"})
+	except WebSocketDisconnect:
+		pass
+	finally:
+		user_still_online = await chat_ws_manager.disconnect(chat_id=chat_id, user_id=user_id, websocket=websocket)
+		if not user_still_online:
+			await chat_ws_manager.broadcast(
+				chat_id=chat_id,
+				message={"event": "presence", "data": {"user_id": user_id, "status": "offline"}},
+				exclude_user_id=user_id,
+			)
