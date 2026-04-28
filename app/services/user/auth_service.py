@@ -71,10 +71,7 @@ class AuthService:
 		self.db.add(user)
 		await self.db.flush()
 
-		team = Team(name=f"team-{user.user_id}")
-		self.db.add(team)
-		await self.db.flush()
-
+		# Создаём роль 'Администратор', если её нет
 		owner_role_stmt = select(TeamRole).where(TeamRole.name == "Администратор")
 		owner_role_result = await self.db.execute(owner_role_stmt)
 		owner_role = owner_role_result.scalar_one_or_none()
@@ -83,65 +80,8 @@ class AuthService:
 			self.db.add(owner_role)
 			await self.db.flush()
 
-		membership = TeamMember(
-			team_id=team.team_id,
-			user_id=user.user_id,
-			team_role_id=owner_role.team_role_id,
-		)
-		self.db.add(membership)
-		await self.db.flush()
-
-		goal = Goal(
-			user_id=user.user_id,
-			title="Default Goal",
-			description="Default goal for new user"
-		)
-		self.db.add(goal)
-		await self.db.flush()
-
-		roadmap = Roadmap(
-			team_id=team.team_id,
-			goals_id=goal.goals_id,
-			completed=False
-		)
-		self.db.add(roadmap)
-		await self.db.flush()
-
-		access = RoadmapAccess(
-			roadmap_id=roadmap.roadmap_id,
-			user_id=user.user_id,
-			permission="owner",
-		)
-		self.db.add(access)
-		await self.db.flush()
-
-		task = Task(
-			roadmap_id=roadmap.roadmap_id,
-			title="Default Task",
-			description="Default task for new user"
-		)
-		self.db.add(task)
-		await self.db.flush()
-
-		chat = Chat(team_id=team.team_id, type="team")
-		self.db.add(chat)
-		await self.db.flush()
-
-		participant = ChatParticipant(
-			chat_id=chat.chat_id,
-			user_id=user.user_id,
-		)
-		self.db.add(participant)
-
-		message = Message(
-			content=f"Welcome message for {email}",
-			user_id=user.user_id,
-			chat_id=chat.chat_id
-		)
-		self.db.add(message)
 		await self.db.commit()
 		await self.db.refresh(user)
-
 		return int(user.user_id)
 
 	async def authenticate_email(self, email: str, password: str) -> Optional[int]:

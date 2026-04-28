@@ -8,7 +8,7 @@ class Chat(Base):
     __tablename__ = "chats"
     
     chat_id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
-    team_id: Mapped[int] = mapped_column(Integer, ForeignKey("teams.team_id", ondelete="CASCADE"), nullable=False, index=True)
+    team_id: Mapped[Optional[int]] = mapped_column(Integer, ForeignKey("teams.team_id", ondelete="CASCADE"), nullable=True, index=True)
     type: Mapped[str] = mapped_column(String(50), default="team", nullable=False)
     name: Mapped[Optional[str]] = mapped_column(String(255))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow)
