@@ -131,14 +131,14 @@ async def chat_websocket(
 	limit: int = Query(default=50, ge=1, le=200),
 ) -> None:
 	if not token:
-		await websocket.close(code=1008)
+		await websocket.close(code=1008, reason="No token provided")
 		return
 
 	try:
 		sub = jwt_manager.verify_access_token(token)
 		user_id = int(sub)
-	except Exception:
-		await websocket.close(code=1008)
+	except Exception as e:
+		await websocket.close(code=1008, reason=f"Invalid token: {str(e)}")
 		return
 
 	async with AsyncSessionLocal() as db:
@@ -146,12 +146,12 @@ async def chat_websocket(
 		res = await db.execute(stmt)
 		user = res.scalar_one_or_none()
 		if not user:
-			await websocket.close(code=1008)
+			await websocket.close(code=1008, reason=f"User {user_id} not found")
 			return
 		try:
 			await ensure_user_is_chat_participant(db, chat_id=chat_id, user_id=user_id)
-		except HTTPException:
-			await websocket.close(code=1008)
+		except HTTPException as e:
+			await websocket.close(code=1008, reason=f"Access denied: {e.detail}")
 			return
 
 	before_online_user_ids = await chat_ws_manager.get_online_user_ids(chat_id=chat_id)
