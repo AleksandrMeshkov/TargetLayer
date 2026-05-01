@@ -1,6 +1,7 @@
 
 from __future__ import annotations
 
+import logging
 from fastapi import APIRouter, Depends, Path, Query, Security, WebSocket, WebSocketDisconnect, status
 from fastapi import HTTPException
 from sqlalchemy import select
@@ -26,6 +27,7 @@ from app.services.chat.ws_manager import chat_ws_manager
 
 router = APIRouter(prefix="/api/v1/chats", tags=["chats"])
 
+logger = logging.getLogger(__name__)
 
 jwt_manager = JWTManager()
 
@@ -130,14 +132,19 @@ async def chat_websocket(
 	token: str | None = Query(default=None),
 	limit: int = Query(default=50, ge=1, le=200),
 ) -> None:
+	logger.info(f"WebSocket connection attempt: chat_id={chat_id}, has_token={token is not None}")
+	
 	if not token:
+		logger.warning(f"WebSocket rejected: No token provided for chat_id={chat_id}")
 		await websocket.close(code=1008, reason="No token provided")
 		return
 
 	try:
 		sub = jwt_manager.verify_access_token(token)
 		user_id = int(sub)
+		logger.info(f"Token verified: user_id={user_id}, chat_id={chat_id}")
 	except Exception as e:
+		logger.error(f"Token verification failed for chat_id={chat_id}: {str(e)}")
 		await websocket.close(code=1008, reason=f"Invalid token: {str(e)}")
 		return
 
@@ -146,17 +153,23 @@ async def chat_websocket(
 		res = await db.execute(stmt)
 		user = res.scalar_one_or_none()
 		if not user:
+			logger.error(f"User not found: user_id={user_id}, chat_id={chat_id}")
 			await websocket.close(code=1008, reason=f"User {user_id} not found")
 			return
+		logger.debug(f"User found: user_id={user_id}, username={user.username if hasattr(user, 'username') else 'N/A'}")
+		
 		try:
 			await ensure_user_is_chat_participant(db, chat_id=chat_id, user_id=user_id)
+			logger.info(f"Access check passed: user_id={user_id}, chat_id={chat_id}")
 		except HTTPException as e:
+			logger.warning(f"Access denied: user_id={user_id}, chat_id={chat_id}, reason={e.detail}")
 			await websocket.close(code=1008, reason=f"Access denied: {e.detail}")
 			return
 
 	before_online_user_ids = await chat_ws_manager.get_online_user_ids(chat_id=chat_id)
 	await chat_ws_manager.connect(chat_id=chat_id, user_id=user_id, websocket=websocket)
 	after_online_user_ids = await chat_ws_manager.get_online_user_ids(chat_id=chat_id)
+	logger.info(f"WebSocket connected: user_id={user_id}, chat_id={chat_id}, online_users={len(after_online_user_ids)}")
 	await websocket.send_json({"event": "online_users", "data": {"user_ids": after_online_user_ids}})
 	if user_id not in before_online_user_ids:
 		await chat_ws_manager.broadcast(
@@ -174,8 +187,10 @@ async def chat_websocket(
 				chat_schemas.MessageResponse.model_validate(m).model_dump(mode="json")
 				for m in messages
 			]
+			logger.debug(f"Sending message history: user_id={user_id}, chat_id={chat_id}, message_count={len(payload)}")
 			await websocket.send_json({"event": "history", "data": {"messages": payload, "total": len(payload)}})
-	except Exception:
+	except Exception as e:
+		logger.error(f"Error loading message history: user_id={user_id}, chat_id={chat_id}, error={str(e)}")
 		await websocket.send_json({"event": "history", "data": {"messages": [], "total": 0}})
 
 	try:
@@ -268,9 +283,12 @@ async def chat_websocket(
 
 			await websocket.send_json({"event": "error", "detail": "Unknown event"})
 	except WebSocketDisconnect:
-		pass
+		logger.info(f"WebSocket disconnected: user_id={user_id}, chat_id={chat_id}")
+	except Exception as e:
+		logger.error(f"WebSocket error: user_id={user_id}, chat_id={chat_id}, error={str(e)}")
 	finally:
 		user_still_online = await chat_ws_manager.disconnect(chat_id=chat_id, user_id=user_id, websocket=websocket)
+		logger.info(f"WebSocket cleanup: user_id={user_id}, chat_id={chat_id}, still_online={user_still_online}")
 		if not user_still_online:
 			await chat_ws_manager.broadcast(
 				chat_id=chat_id,
