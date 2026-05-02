@@ -6,6 +6,8 @@ from datetime import datetime
 
 from fastapi import APIRouter, Depends, Path, Security, WebSocket, WebSocketDisconnect, status
 from fastapi import HTTPException
+from jwt import DecodeError
+import jwt as pyjwt
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -205,15 +207,48 @@ async def chat_websocket(
 				token = auth_header.split(" ", 1)[1].strip() or None
 
 		if not token:
+			logger.info(
+				"WS auth failed: missing token (chat_id=%s, client=%s)",
+				chat_id,
+				getattr(websocket.client, "host", None),
+			)
 			await websocket.close(code=1008)
 			return
 
 		sub = jwt_manager.verify_access_token(token)
 		if not sub:
+			logger.info(
+				"WS auth failed: empty sub (chat_id=%s, client=%s)",
+				chat_id,
+				getattr(websocket.client, "host", None),
+			)
 			await websocket.close(code=1008)
 			return
 		user_id = int(sub)
-	except Exception:
+	except Exception as exc:
+		# Диагностика: пробуем извлечь header/claims без проверки подписи,
+		# чтобы понять, что пришло (alg/type/exp). Сам токен не логируем.
+		alg = None
+		token_type = None
+		exp = None
+		try:
+			alg = pyjwt.get_unverified_header(token or "").get("alg")
+			claims = pyjwt.decode(token or "", options={"verify_signature": False})
+			token_type = claims.get("type")
+			exp = claims.get("exp")
+		except Exception:
+			pass
+
+		logger.warning(
+			"WS auth failed: %s (%s) unverified={alg:%s,type:%s,exp:%s} chat_id=%s client=%s",
+			exc.__class__.__name__,
+			str(exc),
+			alg,
+			token_type,
+			exp,
+			chat_id,
+			getattr(websocket.client, "host", None),
+		)
 		await websocket.close(code=1008)
 		return
 
@@ -221,6 +256,12 @@ async def chat_websocket(
 		try:
 			await _ensure_user_is_chat_participant(db, chat_id=chat_id, user_id=user_id)
 		except HTTPException:
+			logger.info(
+				"WS access denied (chat_id=%s, user_id=%s, client=%s)",
+				chat_id,
+				user_id,
+				getattr(websocket.client, "host", None),
+			)
 			await websocket.close(code=1008)
 			return
 
