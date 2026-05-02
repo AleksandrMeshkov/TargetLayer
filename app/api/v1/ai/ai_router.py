@@ -51,7 +51,6 @@ async def ai_chat(
         if getattr(request, "conversation_id", None):
             conv_id = request.conversation_id
 
-        # Всегда создаём личный роудмап (team_id=None)
         goal = Goal(
             user_id=current_user.user_id,
             title=result.get("goal_title"),

@@ -40,7 +40,6 @@ async def create_chat(
 	current_user: User = Security(get_current_user),
 	db: AsyncSession = Depends(get_db),
 ) -> Chat:
-	"""Создать групповой чат"""
 	await _ensure_user_in_team(db, user_id=current_user.user_id, team_id=payload.team_id)
 	
 	normalized_ids = [int(uid) for uid in payload.participant_user_ids if uid is not None]
@@ -105,7 +104,6 @@ async def get_or_create_team_chat(
 	current_user: User = Security(get_current_user),
 	db: AsyncSession = Depends(get_db),
 ) -> Chat:
-	"""Получить или создать общий командный чат"""
 	await _ensure_user_in_team(db, user_id=current_user.user_id, team_id=team_id)
 	
 	existing_stmt = select(Chat).where(Chat.team_id == team_id, Chat.type == "team")
@@ -149,7 +147,6 @@ async def get_chat_participants(
 	current_user: User = Security(get_current_user),
 	db: AsyncSession = Depends(get_db),
 ) -> chat_schemas.ChatParticipantsListResponse:
-	"""Получить список участников чата"""
 	await _ensure_user_is_chat_participant(db, chat_id=chat_id, user_id=current_user.user_id)
 	stmt = select(ChatParticipant).where(ChatParticipant.chat_id == chat_id).order_by(ChatParticipant.joined_at.asc())
 	res = await db.execute(stmt)
@@ -160,7 +157,6 @@ async def get_chat_participants(
 
 
 async def _ensure_user_in_team(db: AsyncSession, *, user_id: int, team_id: int) -> None:
-	"""Проверить, что пользователь состоит в команде"""
 	stmt = select(TeamMember.id).where(
 		TeamMember.team_id == team_id,
 		TeamMember.user_id == user_id,
@@ -171,7 +167,6 @@ async def _ensure_user_in_team(db: AsyncSession, *, user_id: int, team_id: int) 
 
 
 async def _ensure_user_is_chat_participant(db: AsyncSession, *, chat_id: int, user_id: int) -> Chat:
-	"""Проверить доступ к чату и вернуть объект чата"""
 	stmt = select(Chat).where(Chat.chat_id == chat_id)
 	res = await db.execute(stmt)
 	chat = res.scalar_one_or_none()
@@ -198,7 +193,6 @@ async def chat_websocket(
     websocket: WebSocket,
     chat_id: int,
 ) -> None:
-    """WebSocket для чата: история, отправка, удаление сообщений, выход"""
     user_id: int | None = None
     logger.info(
         "WS connect attempt: chat_id=%s client=%s query_keys=%s",
@@ -207,18 +201,15 @@ async def chat_websocket(
         list(websocket.query_params.keys()),
     )
     
-    # 🔥 ШАГ 1: Сначала принимаем соединение — ВСЕГДА первым!
     try:
         await websocket.accept()
     except RuntimeError:
-        # Сокет уже закрыт (редко, но бывает при обрыве)
         logger.warning("WS already closed before accept: chat_id=%s", chat_id)
         return
     except Exception as e:
         logger.error("WS accept failed: %s", e, exc_info=True)
         return
 
-    # 🔥 ШАГ 2: Теперь валидируем токен и авторизуем
     try:
         token = websocket.query_params.get("token")
         if not token:
@@ -241,7 +232,6 @@ async def chat_websocket(
         user_id = int(sub)
         
     except Exception as exc:
-        # Логируем детали для отладки (без самого токена!)
         alg = token_type = exp = None
         try:
             if token:
@@ -261,7 +251,6 @@ async def chat_websocket(
         await websocket.close(code=4001, reason="Auth error")
         return
 
-    # 🔥 ШАГ 3: Проверяем доступ к чату
     async with AsyncSessionLocal() as db:
         try:
             await _ensure_user_is_chat_participant(db, chat_id=chat_id, user_id=user_id)
@@ -272,11 +261,9 @@ async def chat_websocket(
             await websocket.close(code=4003, reason="Access denied")
             return
 
-    # 🔥 ШАГ 4: Подключаем к менеджеру
     await chat_ws_manager.connect(chat_id=chat_id, user_id=user_id, websocket=websocket)
     logger.info("✅ WS connected: user=%s, chat=%s", user_id, chat_id)
 
-    # 🔥 ШАГ 5: Отправляем историю
     try:
         async with AsyncSessionLocal() as db:
             stmt = (
@@ -297,9 +284,7 @@ async def chat_websocket(
     except Exception as e:
         logger.error("❌ History send error: %s", e, exc_info=True)
         await websocket.send_json({"event": "error", "detail": "Ошибка загрузки истории"})
-        # Не закрываем сокет — чат может работать без истории
 
-    # 🔥 ШАГ 6: Отправляем участников
     try:
         async with AsyncSessionLocal() as db:
             stmt = select(ChatParticipant).where(ChatParticipant.chat_id == chat_id)
@@ -313,7 +298,6 @@ async def chat_websocket(
     except Exception as e:
         logger.error("❌ Participants send error: %s", e, exc_info=True)
 
-    # 🔥 ШАГ 7: Основной цикл обработки сообщений
     try:
         while True:
             data = await websocket.receive_json()

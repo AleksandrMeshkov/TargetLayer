@@ -23,7 +23,6 @@ async def ensure_user_in_team(db: AsyncSession, *, user_id: int, team_id: int) -
 
 
 async def ensure_user_is_chat_participant(db: AsyncSession, *, chat_id: int, user_id: int) -> None:
-	# Проверяем существование чата и доступ к нему
 	chat_stmt = select(Chat).where(Chat.chat_id == chat_id)
 	chat_res = await db.execute(chat_stmt)
 	chat = chat_res.scalar_one_or_none()
@@ -34,7 +33,6 @@ async def ensure_user_is_chat_participant(db: AsyncSession, *, chat_id: int, use
 			detail="Чат не найден",
 		)
 	
-	# Если чат принадлежит команде, проверяем доступ к команде
 	if chat.team_id:
 		member_stmt = select(TeamMember.id).where(
 			TeamMember.team_id == chat.team_id,
@@ -47,7 +45,6 @@ async def ensure_user_is_chat_participant(db: AsyncSession, *, chat_id: int, use
 				detail="Пользователь не состоит в команде этого чата",
 			)
 	
-	# Проверяем, что пользователь участник чата
 	participant_stmt = select(ChatParticipant.id).where(
 		ChatParticipant.chat_id == chat_id,
 		ChatParticipant.user_id == user_id,
