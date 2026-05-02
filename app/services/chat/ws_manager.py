@@ -5,7 +5,6 @@ from collections import defaultdict
 from typing import DefaultDict
 
 from fastapi import WebSocket
-from starlette.websockets import WebSocketState
 
 
 class ChatWebSocketManager:
@@ -15,8 +14,6 @@ class ChatWebSocketManager:
 
 	async def connect(self, *, chat_id: int, user_id: int, websocket: WebSocket) -> None:
 		"""Подключить пользователя к чату"""
-		if websocket.application_state != WebSocketState.CONNECTED:
-			await websocket.accept()
 		async with self._lock:
 			self._connections[chat_id][websocket] = user_id
 

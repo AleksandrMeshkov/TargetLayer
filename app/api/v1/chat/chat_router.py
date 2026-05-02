@@ -10,6 +10,7 @@ from jwt import DecodeError
 import jwt as pyjwt
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+from starlette.websockets import WebSocketState
 
 from app.core.database.database import AsyncSessionLocal, get_db
 from app.core.security.jwt import JWTManager
@@ -194,201 +195,213 @@ async def _ensure_user_is_chat_participant(db: AsyncSession, *, chat_id: int, us
 
 @router.websocket("/{chat_id}/ws")
 async def chat_websocket(
-	websocket: WebSocket,
-	chat_id: int,
+    websocket: WebSocket,
+    chat_id: int,
 ) -> None:
-	"""WebSocket для чата: история, отправка, удаление сообщений, выход"""
-	user_id: int | None = None
-	try:
-		token = websocket.query_params.get("token")
-		if not token:
-			auth_header = websocket.headers.get("authorization")
-			if auth_header and auth_header.lower().startswith("bearer "):
-				token = auth_header.split(" ", 1)[1].strip() or None
+    """WebSocket для чата: история, отправка, удаление сообщений, выход"""
+    user_id: int | None = None
+    
+    # 🔥 ШАГ 1: Сначала принимаем соединение — ВСЕГДА первым!
+    try:
+        await websocket.accept()
+    except RuntimeError:
+        # Сокет уже закрыт (редко, но бывает при обрыве)
+        logger.warning("WS already closed before accept: chat_id=%s", chat_id)
+        return
+    except Exception as e:
+        logger.error("WS accept failed: %s", e, exc_info=True)
+        return
 
-		if not token:
-			logger.info(
-				"WS auth failed: missing token (chat_id=%s, client=%s)",
-				chat_id,
-				getattr(websocket.client, "host", None),
-			)
-			await websocket.close(code=1008)
-			return
+    # 🔥 ШАГ 2: Теперь валидируем токен и авторизуем
+    try:
+        token = websocket.query_params.get("token")
+        if not token:
+            auth_header = websocket.headers.get("authorization")
+            if auth_header and auth_header.lower().startswith("bearer "):
+                token = auth_header.split(" ", 1)[1].strip() or None
 
-		sub = jwt_manager.verify_access_token(token)
-		if not sub:
-			logger.info(
-				"WS auth failed: empty sub (chat_id=%s, client=%s)",
-				chat_id,
-				getattr(websocket.client, "host", None),
-			)
-			await websocket.close(code=1008)
-			return
-		user_id = int(sub)
-	except Exception as exc:
-		# Диагностика: пробуем извлечь header/claims без проверки подписи,
-		# чтобы понять, что пришло (alg/type/exp). Сам токен не логируем.
-		alg = None
-		token_type = None
-		exp = None
-		try:
-			alg = pyjwt.get_unverified_header(token or "").get("alg")
-			claims = pyjwt.decode(token or "", options={"verify_signature": False})
-			token_type = claims.get("type")
-			exp = claims.get("exp")
-		except Exception:
-			pass
+        if not token:
+            logger.info("WS auth failed: missing token (chat_id=%s)", chat_id)
+            await websocket.send_json({"event": "error", "detail": "Требуется токен"})
+            await websocket.close(code=4001, reason="Missing token")
+            return
 
-		logger.warning(
-			"WS auth failed: %s (%s) unverified={alg:%s,type:%s,exp:%s} chat_id=%s client=%s",
-			exc.__class__.__name__,
-			str(exc),
-			alg,
-			token_type,
-			exp,
-			chat_id,
-			getattr(websocket.client, "host", None),
-		)
-		await websocket.close(code=1008)
-		return
+        sub = jwt_manager.verify_access_token(token)
+        if not sub:
+            logger.info("WS auth failed: invalid token (chat_id=%s)", chat_id)
+            await websocket.send_json({"event": "error", "detail": "Неверный токен"})
+            await websocket.close(code=4001, reason="Invalid token")
+            return
+        user_id = int(sub)
+        
+    except Exception as exc:
+        # Логируем детали для отладки (без самого токена!)
+        alg = token_type = exp = None
+        try:
+            if token:
+                alg = pyjwt.get_unverified_header(token).get("alg")
+                claims = pyjwt.decode(token, options={"verify_signature": False})
+                token_type = claims.get("type")
+                exp = claims.get("exp")
+        except Exception:
+            pass
 
-	async with AsyncSessionLocal() as db:
-		try:
-			await _ensure_user_is_chat_participant(db, chat_id=chat_id, user_id=user_id)
-		except HTTPException:
-			logger.info(
-				"WS access denied (chat_id=%s, user_id=%s, client=%s)",
-				chat_id,
-				user_id,
-				getattr(websocket.client, "host", None),
-			)
-			await websocket.close(code=1008)
-			return
+        logger.warning(
+            "WS auth exception: %s (%s) unverified={alg:%s,type:%s,exp:%s} chat_id=%s",
+            exc.__class__.__name__, str(exc), alg, token_type, exp, chat_id,
+            exc_info=True,
+        )
+        await websocket.send_json({"event": "error", "detail": "Ошибка авторизации"})
+        await websocket.close(code=4001, reason="Auth error")
+        return
 
-	await chat_ws_manager.connect(chat_id=chat_id, user_id=user_id, websocket=websocket)
-	logger.info(f"Connected: user={user_id}, chat={chat_id}")
+    # 🔥 ШАГ 3: Проверяем доступ к чату
+    async with AsyncSessionLocal() as db:
+        try:
+            await _ensure_user_is_chat_participant(db, chat_id=chat_id, user_id=user_id)
+        except HTTPException as e:
+            logger.info("WS access denied: chat_id=%s, user_id=%s, detail=%s", 
+                       chat_id, user_id, e.detail)
+            await websocket.send_json({"event": "error", "detail": e.detail})
+            await websocket.close(code=4003, reason="Access denied")
+            return
 
-	# Отправить историю
-	try:
-		async with AsyncSessionLocal() as db:
-			stmt = (
-				select(Message)
-				.where(Message.chat_id == chat_id)
-				.order_by(Message.created_at.asc())
-			)
-			res = await db.execute(stmt)
-			messages = list(res.scalars().all())
-			
-			payload = [
-				chat_schemas.MessageResponse.model_validate(m).model_dump(mode="json")
-				for m in messages
-			]
-			await websocket.send_json({"event": "history", "data": payload})
-	except Exception as e:
-		logger.error(f"History error: {e}")
-		await websocket.send_json({"event": "history", "data": []})
+    # 🔥 ШАГ 4: Подключаем к менеджеру
+    await chat_ws_manager.connect(chat_id=chat_id, user_id=user_id, websocket=websocket)
+    logger.info("✅ WS connected: user=%s, chat=%s", user_id, chat_id)
 
-	# Отправить участников
-	try:
-		async with AsyncSessionLocal() as db:
-			stmt = select(ChatParticipant).where(ChatParticipant.chat_id == chat_id)
-			res = await db.execute(stmt)
-			participants = list(res.scalars().all())
-			await websocket.send_json({
-				"event": "participants",
-				"data": [{"user_id": p.user_id, "joined_at": p.joined_at.isoformat()} for p in participants]
-			})
-	except Exception as e:
-		logger.error(f"Participants error: {e}")
+    # 🔥 ШАГ 5: Отправляем историю
+    try:
+        async with AsyncSessionLocal() as db:
+            stmt = (
+                select(Message)
+                .where(Message.chat_id == chat_id)
+                .order_by(Message.created_at.asc())
+            )
+            res = await db.execute(stmt)
+            messages = list(res.scalars().all())
+            
+            payload = [
+                chat_schemas.MessageResponse.model_validate(m).model_dump(mode="json")
+                for m in messages
+            ]
+            await websocket.send_json({"event": "history", "data": payload})
+            logger.info("📤 Sent history: %d messages to chat=%s", len(payload), chat_id)
+            
+    except Exception as e:
+        logger.error("❌ History send error: %s", e, exc_info=True)
+        await websocket.send_json({"event": "error", "detail": "Ошибка загрузки истории"})
+        # Не закрываем сокет — чат может работать без истории
 
-	try:
-		while True:
-			data = await websocket.receive_json()
-			action = data.get("action")
+    # 🔥 ШАГ 6: Отправляем участников
+    try:
+        async with AsyncSessionLocal() as db:
+            stmt = select(ChatParticipant).where(ChatParticipant.chat_id == chat_id)
+            res = await db.execute(stmt)
+            participants = list(res.scalars().all())
+            await websocket.send_json({
+                "event": "participants",
+                "data": [{"user_id": p.user_id, "joined_at": p.joined_at.isoformat()} 
+                        for p in participants]
+            })
+    except Exception as e:
+        logger.error("❌ Participants send error: %s", e, exc_info=True)
 
-			if action == "send":
-				content = (data.get("content") or "").strip()
-				if not content:
-					await websocket.send_json({"event": "error", "detail": "Сообщение пустое"})
-					continue
+    # 🔥 ШАГ 7: Основной цикл обработки сообщений
+    try:
+        while True:
+            data = await websocket.receive_json()
+            action = data.get("action")
 
-				try:
-					async with AsyncSessionLocal() as db:
-						msg = Message(
-							chat_id=chat_id,
-							user_id=user_id,
-							type=data.get("type", "text"),
-							content=content,
-						)
-						db.add(msg)
-						await db.commit()
-						await db.refresh(msg)
+            if action == "send":
+                content = (data.get("content") or "").strip()
+                if not content:
+                    await websocket.send_json({"event": "error", "detail": "Сообщение пустое"})
+                    continue
 
-						msg_out = chat_schemas.MessageResponse.model_validate(msg).model_dump(mode="json")
-						await chat_ws_manager.broadcast(
-							chat_id=chat_id,
-							message={"event": "message", "data": msg_out},
-						)
-				except Exception as e:
-					logger.error(f"Send error: {e}")
-					await websocket.send_json({"event": "error", "detail": "Ошибка отправки"})
+                try:
+                    async with AsyncSessionLocal() as db:
+                        msg = Message(
+                            chat_id=chat_id,
+                            user_id=user_id,
+                            type=data.get("type", "text"),
+                            content=content,
+                        )
+                        db.add(msg)
+                        await db.commit()
+                        await db.refresh(msg)
 
-			elif action == "delete":
-				message_id = data.get("message_id")
-				try:
-					async with AsyncSessionLocal() as db:
-						stmt = select(Message).where(
-							Message.message_id == message_id,
-							Message.chat_id == chat_id,
-						)
-						res = await db.execute(stmt)
-						msg = res.scalar_one_or_none()
-						
-						if not msg:
-							await websocket.send_json({"event": "error", "detail": "Сообщение не найдено"})
-							continue
-						
-						if msg.user_id != user_id:
-							await websocket.send_json({"event": "error", "detail": "Может удалить только свое сообщение"})
-							continue
-						
-						await db.delete(msg)
-						await db.commit()
-						
-						await chat_ws_manager.broadcast(
-							chat_id=chat_id,
-							message={"event": "message_deleted", "data": {"message_id": message_id}},
-						)
-				except Exception as e:
-					logger.error(f"Delete error: {e}")
-					await websocket.send_json({"event": "error", "detail": "Ошибка удаления"})
+                        msg_out = chat_schemas.MessageResponse.model_validate(msg).model_dump(mode="json")
+                        await chat_ws_manager.broadcast(
+                            chat_id=chat_id,
+                            message={"event": "message", "data": msg_out},
+                        )
+                except Exception as e:
+                    logger.error(f"Send error: {e}", exc_info=True)
+                    await websocket.send_json({"event": "error", "detail": "Ошибка отправки"})
 
-			elif action == "leave":
-				try:
-					async with AsyncSessionLocal() as db:
-						stmt = select(ChatParticipant).where(
-							ChatParticipant.chat_id == chat_id,
-							ChatParticipant.user_id == user_id,
-						)
-						res = await db.execute(stmt)
-						participant = res.scalar_one_or_none()
-						
-						if participant:
-							await db.delete(participant)
-							await db.commit()
-							
-							await chat_ws_manager.broadcast(
-								chat_id=chat_id,
-								message={"event": "user_left", "data": {"user_id": user_id}},
-							)
-				except Exception as e:
-					logger.error(f"Leave error: {e}")
-				break
+            elif action == "delete":
+                message_id = data.get("message_id")
+                try:
+                    async with AsyncSessionLocal() as db:
+                        stmt = select(Message).where(
+                            Message.message_id == message_id,
+                            Message.chat_id == chat_id,
+                        )
+                        res = await db.execute(stmt)
+                        msg = res.scalar_one_or_none()
+                        
+                        if not msg:
+                            await websocket.send_json({"event": "error", "detail": "Сообщение не найдено"})
+                            continue
+                        
+                        if msg.user_id != user_id:
+                            await websocket.send_json({"event": "error", "detail": "Может удалить только свое сообщение"})
+                            continue
+                        
+                        await db.delete(msg)
+                        await db.commit()
+                        
+                        await chat_ws_manager.broadcast(
+                            chat_id=chat_id,
+                            message={"event": "message_deleted", "data": {"message_id": message_id}},
+                        )
+                except Exception as e:
+                    logger.error(f"Delete error: {e}", exc_info=True)
+                    await websocket.send_json({"event": "error", "detail": "Ошибка удаления"})
 
-	except WebSocketDisconnect:
-		logger.info(f"Disconnected: user={user_id}, chat={chat_id}")
-	except Exception as e:
-		logger.error(f"WebSocket error: {e}")
-	finally:
-		if user_id is not None:
-			await chat_ws_manager.disconnect(chat_id=chat_id, user_id=user_id, websocket=websocket)
+            elif action == "leave":
+                try:
+                    async with AsyncSessionLocal() as db:
+                        stmt = select(ChatParticipant).where(
+                            ChatParticipant.chat_id == chat_id,
+                            ChatParticipant.user_id == user_id,
+                        )
+                        res = await db.execute(stmt)
+                        participant = res.scalar_one_or_none()
+                        
+                        if participant:
+                            await db.delete(participant)
+                            await db.commit()
+                            
+                            await chat_ws_manager.broadcast(
+                                chat_id=chat_id,
+                                message={"event": "user_left", "data": {"user_id": user_id}},
+                            )
+                except Exception as e:
+                    logger.error(f"Leave error: {e}", exc_info=True)
+                break
+
+    except WebSocketDisconnect:
+        logger.info("🔌 WS disconnected: user=%s, chat=%s", user_id, chat_id)
+    except Exception as e:
+        logger.error("💥 WS fatal error: %s", e, exc_info=True)
+        try:
+            if websocket.client_state == WebSocketState.CONNECTED:
+                await websocket.send_json({"event": "error", "detail": "Критическая ошибка"})
+        finally:
+            await websocket.close(code=1011, reason="Internal error")
+    finally:
+        if user_id is not None:
+            await chat_ws_manager.disconnect(chat_id=chat_id, user_id=user_id, websocket=websocket)
+            logger.info("🔻 WS cleanup: user=%s, chat=%s", user_id, chat_id)
