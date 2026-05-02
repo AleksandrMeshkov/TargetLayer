@@ -196,8 +196,6 @@ async def chat_websocket(
 	chat_id: int,
 ) -> None:
 	"""WebSocket для чата: история, отправка, удаление сообщений, выход"""
-	await websocket.accept()
-
 	user_id: int | None = None
 	try:
 		token = websocket.query_params.get("token")
@@ -207,14 +205,15 @@ async def chat_websocket(
 				token = auth_header.split(" ", 1)[1].strip() or None
 
 		if not token:
-			await websocket.send_json({"event": "error", "detail": "Отсутствует токен"})
 			await websocket.close(code=1008)
 			return
 
 		sub = jwt_manager.verify_access_token(token)
+		if not sub:
+			await websocket.close(code=1008)
+			return
 		user_id = int(sub)
 	except Exception:
-		await websocket.send_json({"event": "error", "detail": "Неверный токен"})
 		await websocket.close(code=1008)
 		return
 
@@ -222,7 +221,6 @@ async def chat_websocket(
 		try:
 			await _ensure_user_is_chat_participant(db, chat_id=chat_id, user_id=user_id)
 		except HTTPException:
-			await websocket.send_json({"event": "error", "detail": "Доступ запрещён"})
 			await websocket.close(code=1008)
 			return
 
