@@ -200,6 +200,12 @@ async def chat_websocket(
 ) -> None:
     """WebSocket для чата: история, отправка, удаление сообщений, выход"""
     user_id: int | None = None
+    logger.info(
+        "WS connect attempt: chat_id=%s client=%s query_keys=%s",
+        chat_id,
+        websocket.client,
+        list(websocket.query_params.keys()),
+    )
     
     # 🔥 ШАГ 1: Сначала принимаем соединение — ВСЕГДА первым!
     try:

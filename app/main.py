@@ -67,6 +67,12 @@ app.include_router(update_password.router)
 app.include_router(roadmap_router.router)
 app.include_router(chat_router)
 
+
+@app.on_event("startup")
+async def log_registered_websocket_routes() -> None:
+    ws_paths = [route.path for route in app.routes if getattr(route, "path", None) and "websocket" in route.__class__.__name__.lower()]
+    logger.info("Registered websocket routes: %s", ws_paths)
+
 @app.get("/", tags=["Root"])
 async def root():
     return {"message": "TargetLayer API is running!"}
