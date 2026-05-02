@@ -4,7 +4,7 @@ from __future__ import annotations
 import logging
 from datetime import datetime
 
-from fastapi import APIRouter, Depends, Path, Query, Security, WebSocket, WebSocketDisconnect, status
+from fastapi import APIRouter, Depends, Path, Security, WebSocket, WebSocketDisconnect, status
 from fastapi import HTTPException
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -194,24 +194,36 @@ async def _ensure_user_is_chat_participant(db: AsyncSession, *, chat_id: int, us
 async def chat_websocket(
 	websocket: WebSocket,
 	chat_id: int,
-	token: str | None = Query(default=None),
 ) -> None:
 	"""WebSocket для чата: история, отправка, удаление сообщений, выход"""
-	if not token:
-		await websocket.close(code=1008, reason="No token")
-		return
+	await websocket.accept()
 
+	user_id: int | None = None
 	try:
-		user_id = int(jwt_manager.verify_access_token(token))
+		token = websocket.query_params.get("token")
+		if not token:
+			auth_header = websocket.headers.get("authorization")
+			if auth_header and auth_header.lower().startswith("bearer "):
+				token = auth_header.split(" ", 1)[1].strip() or None
+
+		if not token:
+			await websocket.send_json({"event": "error", "detail": "Отсутствует токен"})
+			await websocket.close(code=1008)
+			return
+
+		sub = jwt_manager.verify_access_token(token)
+		user_id = int(sub)
 	except Exception:
-		await websocket.close(code=1008, reason="Invalid token")
+		await websocket.send_json({"event": "error", "detail": "Неверный токен"})
+		await websocket.close(code=1008)
 		return
 
 	async with AsyncSessionLocal() as db:
 		try:
 			await _ensure_user_is_chat_participant(db, chat_id=chat_id, user_id=user_id)
 		except HTTPException:
-			await websocket.close(code=1008, reason="Access denied")
+			await websocket.send_json({"event": "error", "detail": "Доступ запрещён"})
+			await websocket.close(code=1008)
 			return
 
 	await chat_ws_manager.connect(chat_id=chat_id, user_id=user_id, websocket=websocket)
@@ -332,12 +344,12 @@ async def chat_websocket(
 							)
 				except Exception as e:
 					logger.error(f"Leave error: {e}")
-				finally:
-					break
+				break
 
 	except WebSocketDisconnect:
 		logger.info(f"Disconnected: user={user_id}, chat={chat_id}")
 	except Exception as e:
 		logger.error(f"WebSocket error: {e}")
 	finally:
-		await chat_ws_manager.disconnect(chat_id=chat_id, user_id=user_id, websocket=websocket)
+		if user_id is not None:
+			await chat_ws_manager.disconnect(chat_id=chat_id, user_id=user_id, websocket=websocket)

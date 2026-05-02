@@ -38,3 +38,6 @@ build-backend = "poetry.core.masonry.api"
 dev = [
     "psycopg2-binary (>=2.9.11,<3.0.0)"
 ]
+
+[tool.poetry]
+package-mode = false
