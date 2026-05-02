@@ -13,57 +13,44 @@ class ChatWebSocketManager:
 		self._connections: DefaultDict[int, dict[WebSocket, int]] = defaultdict(dict)
 
 	async def connect(self, *, chat_id: int, user_id: int, websocket: WebSocket) -> None:
+		"""Подключить пользователя к чату"""
 		await websocket.accept()
 		async with self._lock:
 			self._connections[chat_id][websocket] = user_id
 
-	async def disconnect(self, *, chat_id: int, user_id: int, websocket: WebSocket) -> bool:
-		
+	async def disconnect(self, *, chat_id: int, user_id: int, websocket: WebSocket) -> None:
+		"""Отключить пользователя от чата"""
 		async with self._lock:
 			room = self._connections.get(chat_id)
-			if not room:
-				return False
-			room.pop(websocket, None)
-			user_still_online = user_id in room.values()
-			if not room:
-				self._connections.pop(chat_id, None)
-			return user_still_online
+			if room:
+				room.pop(websocket, None)
+				if not room:
+					self._connections.pop(chat_id, None)
 
-	async def get_online_user_ids(self, *, chat_id: int) -> list[int]:
-		async with self._lock:
-			room = self._connections.get(chat_id, {})
-			return sorted(set(room.values()))
-
-	async def broadcast(self, *, chat_id: int, message: dict, exclude_user_id: int | None = None) -> set[int]:
+	async def broadcast(self, *, chat_id: int, message: dict) -> None:
+		"""Отправить сообщение всем пользователям чата"""
 		async with self._lock:
 			room = self._connections.get(chat_id, {})
 			connections = list(room.items())
 
 		if not connections:
-			return set()
+			return
 
-		delivered_user_ids: set[int] = set()
 		dead: list[WebSocket] = []
-		for ws, user_id in connections:
-			if exclude_user_id is not None and user_id == exclude_user_id:
-				continue
+		for ws, _ in connections:
 			try:
 				await ws.send_json(message)
-				delivered_user_ids.add(user_id)
 			except Exception:
 				dead.append(ws)
 
 		if dead:
 			async with self._lock:
 				room = self._connections.get(chat_id)
-				if not room:
-					return delivered_user_ids
-				for ws in dead:
-					room.pop(ws, None)
-				if not room:
-					self._connections.pop(chat_id, None)
-
-		return delivered_user_ids
+				if room:
+					for ws in dead:
+						room.pop(ws, None)
+					if not room:
+						self._connections.pop(chat_id, None)
 
 
 chat_ws_manager = ChatWebSocketManager()

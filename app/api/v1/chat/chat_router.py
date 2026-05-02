@@ -2,6 +2,8 @@
 from __future__ import annotations
 
 import logging
+from datetime import datetime
+
 from fastapi import APIRouter, Depends, Path, Query, Security, WebSocket, WebSocketDisconnect, status
 from fastapi import HTTPException
 from sqlalchemy import select
@@ -10,25 +12,17 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.database.database import AsyncSessionLocal, get_db
 from app.core.security.jwt import JWTManager
 from app.models.chat import Chat
+from app.models.chat_participant import ChatParticipant
+from app.models.message import Message
 from app.models.user import User
+from app.models.team_member import TeamMember
 from app.schemas import chat as chat_schemas
-from app.services.chat.chat_permissions import ensure_user_is_chat_participant
-from app.services.chat.team_chat import get_or_create_team_chat as get_or_create_team_chat_service
-from app.services.chat.group_chat_service import create_group_chat
-from app.services.chat.message_service import delete_chat_message, list_chat_messages, send_chat_message
-from app.services.chat.participant_service import (
-	leave_chat as leave_chat_service,
-	list_chat_participants,
-	list_my_chats,
-)
 from app.services.user.get_my_user import get_current_user
 from app.services.chat.ws_manager import chat_ws_manager
 
 
 router = APIRouter(prefix="/api/v1/chats", tags=["chats"])
-
 logger = logging.getLogger(__name__)
-
 jwt_manager = JWTManager()
 
 
@@ -43,13 +37,37 @@ async def create_chat(
 	current_user: User = Security(get_current_user),
 	db: AsyncSession = Depends(get_db),
 ) -> Chat:
-	chat = await create_group_chat(
-		db,
-		team_id=payload.team_id,
-		creator_user_id=current_user.user_id,
-		participant_user_ids=payload.participant_user_ids,
-		name=payload.name,
-	)
+	"""Создать групповой чат"""
+	await _ensure_user_in_team(db, user_id=current_user.user_id, team_id=payload.team_id)
+	
+	normalized_ids = [int(uid) for uid in payload.participant_user_ids if uid is not None]
+	participant_set = {current_user.user_id, *normalized_ids}
+	
+	if len(participant_set) < 2:
+		raise HTTPException(
+			status_code=status.HTTP_400_BAD_REQUEST,
+			detail="Минимум 2 участника требуется",
+		)
+	
+	members_stmt = select(TeamMember.user_id).where(TeamMember.team_id == payload.team_id)
+	members_res = await db.execute(members_stmt)
+	team_user_ids = set(members_res.scalars().all())
+	
+	if not participant_set.issubset(team_user_ids):
+		raise HTTPException(
+			status_code=status.HTTP_400_BAD_REQUEST,
+			detail="Все участники должны быть в команде",
+		)
+	
+	chat = Chat(team_id=payload.team_id, type="group", name=(payload.name or None))
+	db.add(chat)
+	await db.flush()
+	
+	for uid in sorted(participant_set):
+		db.add(ChatParticipant(chat_id=chat.chat_id, user_id=uid, joined_at=datetime.utcnow()))
+	
+	await db.commit()
+	await db.refresh(chat)
 	return chat
 
 
@@ -62,7 +80,15 @@ async def get_my_chats(
 	current_user: User = Security(get_current_user),
 	db: AsyncSession = Depends(get_db),
 ) -> chat_schemas.ChatListResponse:
-	chats = await list_my_chats(db, user_id=current_user.user_id)
+	"""Получить список моих чатов"""
+	stmt = (
+		select(Chat)
+		.join(ChatParticipant, ChatParticipant.chat_id == Chat.chat_id)
+		.where(ChatParticipant.user_id == current_user.user_id)
+		.order_by(Chat.created_at.desc())
+	)
+	res = await db.execute(stmt)
+	chats = list(res.scalars().unique().all())
 	return chat_schemas.ChatListResponse(chats=chats, total=len(chats))
 
 
@@ -71,12 +97,42 @@ async def get_my_chats(
 	response_model=chat_schemas.ChatResponse,
 	openapi_extra={"security": [{"Bearer": []}]},
 )
-async def get_or_create_team_chat_endpoint(
+async def get_or_create_team_chat(
 	team_id: int = Path(..., gt=0),
 	current_user: User = Security(get_current_user),
 	db: AsyncSession = Depends(get_db),
 ) -> Chat:
-	chat = await get_or_create_team_chat_service(db, team_id=team_id, user_id=current_user.user_id)
+	"""Получить или создать общий командный чат"""
+	await _ensure_user_in_team(db, user_id=current_user.user_id, team_id=team_id)
+	
+	existing_stmt = select(Chat).where(Chat.team_id == team_id, Chat.type == "team")
+	existing_res = await db.execute(existing_stmt)
+	existing = existing_res.scalar_one_or_none()
+	
+	if existing:
+		participant_stmt = select(ChatParticipant.id).where(
+			ChatParticipant.chat_id == existing.chat_id,
+			ChatParticipant.user_id == current_user.user_id,
+		)
+		participant_res = await db.execute(participant_stmt)
+		if participant_res.scalar_one_or_none() is None:
+			db.add(ChatParticipant(chat_id=existing.chat_id, user_id=current_user.user_id, joined_at=datetime.utcnow()))
+			await db.commit()
+			await db.refresh(existing)
+		return existing
+	
+	chat = Chat(team_id=team_id, type="team", name="Общий чат")
+	db.add(chat)
+	await db.flush()
+	
+	members_stmt = select(TeamMember.user_id).where(TeamMember.team_id == team_id)
+	members_res = await db.execute(members_stmt)
+	member_user_ids = list(members_res.scalars().all())
+	for uid in member_user_ids:
+		db.add(ChatParticipant(chat_id=chat.chat_id, user_id=uid, joined_at=datetime.utcnow()))
+	
+	await db.commit()
+	await db.refresh(chat)
 	return chat
 
 
@@ -90,39 +146,48 @@ async def get_chat_participants(
 	current_user: User = Security(get_current_user),
 	db: AsyncSession = Depends(get_db),
 ) -> chat_schemas.ChatParticipantsListResponse:
-	participants = await list_chat_participants(db, chat_id=chat_id, user_id=current_user.user_id)
+	"""Получить список участников чата"""
+	await _ensure_user_is_chat_participant(db, chat_id=chat_id, user_id=current_user.user_id)
+	stmt = select(ChatParticipant).where(ChatParticipant.chat_id == chat_id).order_by(ChatParticipant.joined_at.asc())
+	res = await db.execute(stmt)
+	participants = list(res.scalars().all())
 	return chat_schemas.ChatParticipantsListResponse(participants=participants, total=len(participants))
 
 
 
 
-@router.delete(
-	"/{chat_id}/messages/{message_id}",
-	response_model=dict,
-	openapi_extra={"security": [{"Bearer": []}]},
-)
-async def delete_message(
-	chat_id: int = Path(..., gt=0),
-	message_id: int = Path(..., gt=0),
-	current_user: User = Security(get_current_user),
-	db: AsyncSession = Depends(get_db),
-) -> dict:
-	await delete_chat_message(db, chat_id=chat_id, message_id=message_id, user_id=current_user.user_id)
-	return {"status": "success", "message": "Сообщение удалено"}
+async def _ensure_user_in_team(db: AsyncSession, *, user_id: int, team_id: int) -> None:
+	"""Проверить, что пользователь состоит в команде"""
+	stmt = select(TeamMember.id).where(
+		TeamMember.team_id == team_id,
+		TeamMember.user_id == user_id,
+	)
+	res = await db.execute(stmt)
+	if res.scalar_one_or_none() is None:
+		raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Пользователь не в команде")
 
 
-@router.delete(
-	"/{chat_id}/leave",
-	response_model=dict,
-	openapi_extra={"security": [{"Bearer": []}]},
-)
-async def leave_chat_endpoint(
-	chat_id: int = Path(..., gt=0),
-	current_user: User = Security(get_current_user),
-	db: AsyncSession = Depends(get_db),
-) -> dict:
-	await leave_chat_service(db, chat_id=chat_id, user_id=current_user.user_id)
-	return {"status": "success", "message": "Вы вышли из чата"}
+async def _ensure_user_is_chat_participant(db: AsyncSession, *, chat_id: int, user_id: int) -> Chat:
+	"""Проверить доступ к чату и вернуть объект чата"""
+	stmt = select(Chat).where(Chat.chat_id == chat_id)
+	res = await db.execute(stmt)
+	chat = res.scalar_one_or_none()
+	
+	if not chat:
+		raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Чат не найден")
+	
+	if chat.team_id:
+		await _ensure_user_in_team(db, user_id=user_id, team_id=chat.team_id)
+	
+	stmt = select(ChatParticipant.id).where(
+		ChatParticipant.chat_id == chat_id,
+		ChatParticipant.user_id == user_id,
+	)
+	res = await db.execute(stmt)
+	if res.scalar_one_or_none() is None:
+		raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Доступ запрещен")
+	
+	return chat
 
 
 @router.websocket("/{chat_id}/ws")
@@ -130,168 +195,149 @@ async def chat_websocket(
 	websocket: WebSocket,
 	chat_id: int,
 	token: str | None = Query(default=None),
-	limit: int = Query(default=50, ge=1, le=200),
 ) -> None:
-	logger.info(f"WebSocket connection attempt: chat_id={chat_id}, has_token={token is not None}")
-	
+	"""WebSocket для чата: история, отправка, удаление сообщений, выход"""
 	if not token:
-		logger.warning(f"WebSocket rejected: No token provided for chat_id={chat_id}")
-		await websocket.close(code=1008, reason="No token provided")
+		await websocket.close(code=1008, reason="No token")
 		return
 
 	try:
-		sub = jwt_manager.verify_access_token(token)
-		user_id = int(sub)
-		logger.info(f"Token verified: user_id={user_id}, chat_id={chat_id}")
-	except Exception as e:
-		logger.error(f"Token verification failed for chat_id={chat_id}: {str(e)}")
-		await websocket.close(code=1008, reason=f"Invalid token: {str(e)}")
+		user_id = int(jwt_manager.verify_access_token(token))
+	except Exception:
+		await websocket.close(code=1008, reason="Invalid token")
 		return
 
 	async with AsyncSessionLocal() as db:
-		stmt = select(User).where(User.user_id == user_id)
-		res = await db.execute(stmt)
-		user = res.scalar_one_or_none()
-		if not user:
-			logger.error(f"User not found: user_id={user_id}, chat_id={chat_id}")
-			await websocket.close(code=1008, reason=f"User {user_id} not found")
-			return
-		logger.debug(f"User found: user_id={user_id}, username={user.username if hasattr(user, 'username') else 'N/A'}")
-		
 		try:
-			await ensure_user_is_chat_participant(db, chat_id=chat_id, user_id=user_id)
-			logger.info(f"Access check passed: user_id={user_id}, chat_id={chat_id}")
-		except HTTPException as e:
-			logger.warning(f"Access denied: user_id={user_id}, chat_id={chat_id}, reason={e.detail}")
-			await websocket.close(code=1008, reason=f"Access denied: {e.detail}")
+			await _ensure_user_is_chat_participant(db, chat_id=chat_id, user_id=user_id)
+		except HTTPException:
+			await websocket.close(code=1008, reason="Access denied")
 			return
 
-	before_online_user_ids = await chat_ws_manager.get_online_user_ids(chat_id=chat_id)
 	await chat_ws_manager.connect(chat_id=chat_id, user_id=user_id, websocket=websocket)
-	after_online_user_ids = await chat_ws_manager.get_online_user_ids(chat_id=chat_id)
-	logger.info(f"WebSocket connected: user_id={user_id}, chat_id={chat_id}, online_users={len(after_online_user_ids)}")
-	await websocket.send_json({"event": "online_users", "data": {"user_ids": after_online_user_ids}})
-	if user_id not in before_online_user_ids:
-		await chat_ws_manager.broadcast(
-			chat_id=chat_id,
-			message={"event": "presence", "data": {"user_id": user_id, "status": "online"}},
-			exclude_user_id=user_id,
-		)
+	logger.info(f"Connected: user={user_id}, chat={chat_id}")
 
+	# Отправить историю
 	try:
 		async with AsyncSessionLocal() as db:
-			messages = await list_chat_messages(db, chat_id=chat_id, user_id=user_id)
-			if limit and len(messages) > limit:
-				messages = messages[-limit:]
+			stmt = (
+				select(Message)
+				.where(Message.chat_id == chat_id)
+				.order_by(Message.created_at.asc())
+			)
+			res = await db.execute(stmt)
+			messages = list(res.scalars().all())
+			
 			payload = [
 				chat_schemas.MessageResponse.model_validate(m).model_dump(mode="json")
 				for m in messages
 			]
-			logger.debug(f"Sending message history: user_id={user_id}, chat_id={chat_id}, message_count={len(payload)}")
-			await websocket.send_json({"event": "history", "data": {"messages": payload, "total": len(payload)}})
+			await websocket.send_json({"event": "history", "data": payload})
 	except Exception as e:
-		logger.error(f"Error loading message history: user_id={user_id}, chat_id={chat_id}, error={str(e)}")
-		await websocket.send_json({"event": "history", "data": {"messages": [], "total": 0}})
+		logger.error(f"History error: {e}")
+		await websocket.send_json({"event": "history", "data": []})
+
+	# Отправить участников
+	try:
+		async with AsyncSessionLocal() as db:
+			stmt = select(ChatParticipant).where(ChatParticipant.chat_id == chat_id)
+			res = await db.execute(stmt)
+			participants = list(res.scalars().all())
+			await websocket.send_json({
+				"event": "participants",
+				"data": [{"user_id": p.user_id, "joined_at": p.joined_at.isoformat()} for p in participants]
+			})
+	except Exception as e:
+		logger.error(f"Participants error: {e}")
 
 	try:
 		while True:
-			try:
-				raw = await websocket.receive_json()
-			except Exception:
-				await websocket.send_json({"event": "error", "detail": "Invalid JSON"})
-				continue
+			data = await websocket.receive_json()
+			action = data.get("action")
 
-			event: str | None = None
-			data = raw
-			if isinstance(raw, dict):
-				event = raw.get("event")
-				data = raw.get("data", raw)
-
-			# Backward-compatible: if client sends just the message payload
-			if event in (None, "message"):
-				try:
-					msg_in = chat_schemas.MessageCreateRequest.model_validate(data)
-				except Exception:
-					await websocket.send_json({"event": "error", "detail": "Invalid message payload"})
+			if action == "send":
+				content = (data.get("content") or "").strip()
+				if not content:
+					await websocket.send_json({"event": "error", "detail": "Сообщение пустое"})
 					continue
 
 				try:
 					async with AsyncSessionLocal() as db:
-						msg = await send_chat_message(
-							db,
+						msg = Message(
 							chat_id=chat_id,
 							user_id=user_id,
-							content=msg_in.content,
-							message_type=msg_in.type,
+							type=data.get("type", "text"),
+							content=content,
 						)
-				except HTTPException as exc:
-					await websocket.send_json({"event": "error", "detail": exc.detail})
-					continue
+						db.add(msg)
+						await db.commit()
+						await db.refresh(msg)
 
-				msg_out = chat_schemas.MessageResponse.model_validate(msg).model_dump(mode="json")
-				delivered_user_ids = await chat_ws_manager.broadcast(
-					chat_id=chat_id,
-					message={"event": "message", "data": msg_out},
-					exclude_user_id=user_id,
-				)
-				await websocket.send_json({"event": "message_ack", "data": msg_out})
-				if delivered_user_ids:
-					await websocket.send_json(
-						{
-							"event": "message_status",
-							"data": {
-								"message_id": msg_out.get("message_id"),
-								"status": "delivered",
-								"user_ids": sorted(delivered_user_ids),
-							},
-						}
-					)
-				continue
+						msg_out = chat_schemas.MessageResponse.model_validate(msg).model_dump(mode="json")
+						await chat_ws_manager.broadcast(
+							chat_id=chat_id,
+							message={"event": "message", "data": msg_out},
+						)
+				except Exception as e:
+					logger.error(f"Send error: {e}")
+					await websocket.send_json({"event": "error", "detail": "Ошибка отправки"})
 
-			if event == "typing":
-				is_typing = False
-				if isinstance(data, dict):
-					is_typing = bool(data.get("is_typing", True))
-				await chat_ws_manager.broadcast(
-					chat_id=chat_id,
-					message={"event": "typing", "data": {"user_id": user_id, "is_typing": is_typing}},
-					exclude_user_id=user_id,
-				)
-				continue
-
-			if event == "read":
-				message_id = None
-				if isinstance(data, dict):
-					message_id = data.get("message_id")
+			elif action == "delete":
+				message_id = data.get("message_id")
 				try:
-					message_id_int = int(message_id)
-				except Exception:
-					await websocket.send_json({"event": "error", "detail": "Invalid read payload"})
-					continue
-				await chat_ws_manager.broadcast(
-					chat_id=chat_id,
-					message={
-						"event": "message_status",
-						"data": {"message_id": message_id_int, "status": "read", "user_id": user_id},
-					},
-				)
-				continue
+					async with AsyncSessionLocal() as db:
+						stmt = select(Message).where(
+							Message.message_id == message_id,
+							Message.chat_id == chat_id,
+						)
+						res = await db.execute(stmt)
+						msg = res.scalar_one_or_none()
+						
+						if not msg:
+							await websocket.send_json({"event": "error", "detail": "Сообщение не найдено"})
+							continue
+						
+						if msg.user_id != user_id:
+							await websocket.send_json({"event": "error", "detail": "Может удалить только свое сообщение"})
+							continue
+						
+						await db.delete(msg)
+						await db.commit()
+						
+						await chat_ws_manager.broadcast(
+							chat_id=chat_id,
+							message={"event": "message_deleted", "data": {"message_id": message_id}},
+						)
+				except Exception as e:
+					logger.error(f"Delete error: {e}")
+					await websocket.send_json({"event": "error", "detail": "Ошибка удаления"})
 
-			if event == "ping":
-				await websocket.send_json({"event": "pong"})
-				continue
+			elif action == "leave":
+				try:
+					async with AsyncSessionLocal() as db:
+						stmt = select(ChatParticipant).where(
+							ChatParticipant.chat_id == chat_id,
+							ChatParticipant.user_id == user_id,
+						)
+						res = await db.execute(stmt)
+						participant = res.scalar_one_or_none()
+						
+						if participant:
+							await db.delete(participant)
+							await db.commit()
+							
+							await chat_ws_manager.broadcast(
+								chat_id=chat_id,
+								message={"event": "user_left", "data": {"user_id": user_id}},
+							)
+				except Exception as e:
+					logger.error(f"Leave error: {e}")
+				finally:
+					break
 
-			await websocket.send_json({"event": "error", "detail": "Unknown event"})
 	except WebSocketDisconnect:
-		logger.info(f"WebSocket disconnected: user_id={user_id}, chat_id={chat_id}")
+		logger.info(f"Disconnected: user={user_id}, chat={chat_id}")
 	except Exception as e:
-		logger.error(f"WebSocket error: user_id={user_id}, chat_id={chat_id}, error={str(e)}")
+		logger.error(f"WebSocket error: {e}")
 	finally:
-		user_still_online = await chat_ws_manager.disconnect(chat_id=chat_id, user_id=user_id, websocket=websocket)
-		logger.info(f"WebSocket cleanup: user_id={user_id}, chat_id={chat_id}, still_online={user_still_online}")
-		if not user_still_online:
-			await chat_ws_manager.broadcast(
-				chat_id=chat_id,
-				message={"event": "presence", "data": {"user_id": user_id, "status": "offline"}},
-				exclude_user_id=user_id,
-			)
+		await chat_ws_manager.disconnect(chat_id=chat_id, user_id=user_id, websocket=websocket)
