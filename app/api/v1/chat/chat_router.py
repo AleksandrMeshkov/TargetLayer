@@ -22,6 +22,7 @@ from app.models.team_member import TeamMember
 from app.schemas import chat as chat_schemas
 from app.services.user.get_my_user import get_current_user
 from app.services.chat.ws_manager import chat_ws_manager
+from app.services.chat.participant_service import leave_chat
 
 
 router = APIRouter(prefix="/api/v1/chats", tags=["chats"])
@@ -156,6 +157,28 @@ async def get_chat_participants(
 	res = await db.execute(stmt)
 	participants = list(res.scalars().all())
 	return chat_schemas.ChatParticipantsListResponse(participants=participants, total=len(participants))
+
+
+@router.delete(
+	"/{chat_id}/leave",
+	response_model=dict,
+	openapi_extra={"security": [{"Bearer": []}]},
+)
+async def leave_chat_endpoint(
+	chat_id: int = Path(..., gt=0),
+	current_user: User = Security(get_current_user),
+	db: AsyncSession = Depends(get_db),
+) -> dict:
+	"""Выйти из чата"""
+	await leave_chat(db, chat_id=chat_id, user_id=current_user.user_id)
+	
+	# Broadcast to other participants that user left
+	await chat_ws_manager.broadcast(
+		chat_id=chat_id,
+		message={"event": "user_left", "data": {"user_id": current_user.user_id}},
+	)
+	
+	return {"status": "success", "message": "Вы вышли из чата"}
 
 
 
