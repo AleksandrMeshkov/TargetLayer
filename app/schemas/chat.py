@@ -59,3 +59,7 @@ class ChatParticipantResponse(BaseModel):
 class ChatParticipantsListResponse(BaseModel):
     participants: list[ChatParticipantResponse]
     total: int
+
+
+class ChatUpdateRequest(BaseModel):
+    name: str = Field(min_length=1, max_length=255)

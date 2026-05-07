@@ -159,6 +159,40 @@ async def get_chat_participants(
 	return chat_schemas.ChatParticipantsListResponse(participants=participants, total=len(participants))
 
 
+@router.put(
+	"/{chat_id}",
+	response_model=chat_schemas.ChatResponse,
+	openapi_extra={"security": [{"Bearer": []}]},
+)
+async def update_chat(
+	payload: chat_schemas.ChatUpdateRequest,
+	chat_id: int = Path(..., gt=0),
+	current_user: User = Security(get_current_user),
+	db: AsyncSession = Depends(get_db),
+) -> Chat:
+	"""Изменить название чата"""
+	await _ensure_user_is_chat_participant(db, chat_id=chat_id, user_id=current_user.user_id)
+	
+	stmt = select(Chat).where(Chat.chat_id == chat_id)
+	result = await db.execute(stmt)
+	chat = result.scalar_one_or_none()
+	
+	if not chat:
+		raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Чат не найден")
+	
+	chat.name = payload.name
+	await db.commit()
+	await db.refresh(chat)
+	
+	# Broadcast to other participants that chat name changed
+	await chat_ws_manager.broadcast(
+		chat_id=chat_id,
+		message={"event": "chat_updated", "data": {"chat_id": chat_id, "name": chat.name}},
+	)
+	
+	return chat
+
+
 @router.delete(
 	"/{chat_id}/leave",
 	response_model=dict,
