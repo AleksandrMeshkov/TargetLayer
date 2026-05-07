@@ -9,6 +9,8 @@ from app.api.v1.roadmap import roadmap_router
 from app.api.v1.chat.chat_router import router as chat_router
 
 from app.core.settings.settings import settings
+from app.core.init import init_team_roles
+from app.core.database.database import AsyncSessionLocal
 import logging
 
 logging.basicConfig(level=logging.DEBUG)
@@ -69,9 +71,16 @@ app.include_router(chat_router)
 
 
 @app.on_event("startup")
+async def init_db():
+	"""Initialize database with default data."""
+	async with AsyncSessionLocal() as db:
+		await init_team_roles(db)
+		logger.info("Database initialized: team roles created")
+
+@app.on_event("startup")
 async def log_registered_websocket_routes() -> None:
-    ws_paths = [route.path for route in app.routes if getattr(route, "path", None) and "websocket" in route.__class__.__name__.lower()]
-    logger.info("Registered websocket routes: %s", ws_paths)
+	ws_paths = [route.path for route in app.routes if getattr(route, "path", None) and "websocket" in route.__class__.__name__.lower()]
+	logger.info("Registered websocket routes: %s", ws_paths)
 
 @app.get("/", tags=["Root"])
 async def root():

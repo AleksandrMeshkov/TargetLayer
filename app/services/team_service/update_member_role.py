@@ -3,8 +3,8 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.team_member import TeamMember
+from app.models.team_role import TeamRole
 from app.models.user import User
-from app.services.team_service.get_or_create_team_role import get_or_create_team_role
 from app.services.team_service.get_owned_team import get_owned_team
 
 
@@ -13,7 +13,7 @@ async def update_team_member_role(
 	current_user: User,
 	team_id: int,
 	target_user_id: int,
-	new_role_name: str,
+	role_id: int,
 ) -> TeamMember:
 	await get_owned_team(db, current_user, team_id)
 
@@ -29,8 +29,17 @@ async def update_team_member_role(
 			detail="User is not a member of this team",
 		)
 
-	role = await get_or_create_team_role(db, new_role_name)
-	membership.team_role_id = role.team_role_id
+	# Verify that the role exists
+	role_stmt = select(TeamRole).where(TeamRole.team_role_id == role_id)
+	role_res = await db.execute(role_stmt)
+	role = role_res.scalar_one_or_none()
+	if not role:
+		raise HTTPException(
+			status_code=status.HTTP_400_BAD_REQUEST,
+			detail=f"Role with ID {role_id} not found",
+		)
+
+	membership.team_role_id = role_id
 	
 	db.add(membership)
 	await db.commit()

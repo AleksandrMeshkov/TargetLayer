@@ -65,4 +65,4 @@ class TeamInviteEmailResponse(BaseModel):
 
 
 class TeamMemberRoleUpdateRequest(BaseModel):
-	role: str = Field(min_length=1, max_length=50)
+	role_id: int = Field(gt=0, description="ID роли")

@@ -135,7 +135,7 @@ async def update_member_role(
 		current_user,
 		team_id,
 		user_id,
-		payload.role,
+		payload.role_id,
 	)
 	return member
 
