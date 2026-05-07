@@ -6,14 +6,14 @@ from pydantic import BaseModel, ConfigDict, Field
 
 
 class ChatCreateRequest(BaseModel):
-    team_id: int = Field(gt=0)
+    team_id: int | None = Field(default=None, ge=0)
     participant_user_ids: list[int] = Field(default_factory=list)
     name: str | None = Field(default=None, max_length=255)
 
 
 class ChatResponse(BaseModel):
     chat_id: int
-    team_id: int
+    team_id: int | None
     type: str
     name: str | None
     created_at: datetime

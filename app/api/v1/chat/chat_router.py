@@ -40,7 +40,10 @@ async def create_chat(
 	current_user: User = Security(get_current_user),
 	db: AsyncSession = Depends(get_db),
 ) -> Chat:
-	await _ensure_user_in_team(db, user_id=current_user.user_id, team_id=payload.team_id)
+	team_id = payload.team_id if payload.team_id and payload.team_id > 0 else None
+	
+	if team_id:
+		await _ensure_user_in_team(db, user_id=current_user.user_id, team_id=team_id)
 	
 	normalized_ids = [int(uid) for uid in payload.participant_user_ids if uid is not None]
 	participant_set = {current_user.user_id, *normalized_ids}
@@ -51,17 +54,18 @@ async def create_chat(
 			detail="Минимум 2 участника требуется",
 		)
 	
-	members_stmt = select(TeamMember.user_id).where(TeamMember.team_id == payload.team_id)
-	members_res = await db.execute(members_stmt)
-	team_user_ids = set(members_res.scalars().all())
+	if team_id:
+		members_stmt = select(TeamMember.user_id).where(TeamMember.team_id == team_id)
+		members_res = await db.execute(members_stmt)
+		team_user_ids = set(members_res.scalars().all())
+		
+		if not participant_set.issubset(team_user_ids):
+			raise HTTPException(
+				status_code=status.HTTP_400_BAD_REQUEST,
+				detail="Все участники должны быть в команде",
+			)
 	
-	if not participant_set.issubset(team_user_ids):
-		raise HTTPException(
-			status_code=status.HTTP_400_BAD_REQUEST,
-			detail="Все участники должны быть в команде",
-		)
-	
-	chat = Chat(team_id=payload.team_id, type="group", name=(payload.name or None))
+	chat = Chat(team_id=team_id, type="group", name=(payload.name or None))
 	db.add(chat)
 	await db.flush()
 	
