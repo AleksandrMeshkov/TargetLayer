@@ -45,7 +45,12 @@ async def delete_user_roadmap(
     is_creator = goal and goal.user_id == user_id
     
     if is_creator:
-        # Создатель удаляет роудмап полностью
+        # Создатель удаляет оригинальный роудмап
+        # Удаляем только саму запись о копировании, но копии остаются у пользователей
+        await db.execute(
+            delete(RoadmapCopy).where(RoadmapCopy.original_roadmap_id == roadmap_id)
+        )
+        # Теперь удаляем сам роудмап
         await db.delete(roadmap)
         await db.commit()
         return {

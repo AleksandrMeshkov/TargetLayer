@@ -20,12 +20,10 @@ class Roadmap(Base):
     source_copies: Mapped[list["RoadmapCopy"]] = relationship(
         "RoadmapCopy",
         foreign_keys="RoadmapCopy.original_roadmap_id",
-        back_populates="original_roadmap",
-        cascade="all, delete-orphan",
+        back_populates="original_roadmap"
     )
     copied_from: Mapped[list["RoadmapCopy"]] = relationship(
         "RoadmapCopy",
         foreign_keys="RoadmapCopy.new_roadmap_id",
-        back_populates="new_roadmap",
-        cascade="all, delete-orphan",
+        back_populates="new_roadmap"
     )

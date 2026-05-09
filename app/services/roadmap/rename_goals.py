@@ -7,7 +7,7 @@ from app.core.database.database import get_db
 from app.core.security.jwt import JWTManager
 from app.models.roadmap import Roadmap
 from app.models.goal import Goal
-from app.models.team_member import TeamMember
+from app.models.roadmap_copy import RoadmapCopy
 
 security = HTTPBearer()
 jwt_manager = JWTManager()
@@ -40,7 +40,7 @@ async def update_goal_in_roadmap(
             detail="Роудмап не найден"
         )
     
-    # Проверяем доступ: создатель или член команды
+    # Проверяем доступ: создатель или скопировал
     goal_stmt = select(Goal).where(Goal.goals_id == roadmap.goals_id)
     goal_result = await db.execute(goal_stmt)
     goal = goal_result.scalars().first()
@@ -54,14 +54,14 @@ async def update_goal_in_roadmap(
     # Может редактировать если создатель
     can_edit = goal.user_id == user_id
     
-    # Или если роудмап в команде и он член команды
-    if not can_edit and roadmap.team_id:
-        team_member_stmt = select(TeamMember).where(
-            TeamMember.team_id == roadmap.team_id,
-            TeamMember.user_id == user_id
+    # Или если скопировал роудмап
+    if not can_edit:
+        copy_stmt = select(RoadmapCopy).where(
+            RoadmapCopy.new_roadmap_id == roadmap_id,
+            RoadmapCopy.user_id == user_id
         )
-        team_member_res = await db.execute(team_member_stmt)
-        can_edit = team_member_res.scalars().first() is not None
+        copy_res = await db.execute(copy_stmt)
+        can_edit = copy_res.scalars().first() is not None
     
     if not can_edit:
         raise HTTPException(

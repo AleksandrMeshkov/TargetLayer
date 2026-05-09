@@ -1,23 +1,26 @@
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, or_
+from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 
 from app.core.database.database import get_db
 from app.core.security.jwt import JWTManager
 from app.models.roadmap import Roadmap
 from app.models.goal import Goal
+from app.models.team_member import TeamMember
 from app.models.roadmap_copy import RoadmapCopy
 
 security = HTTPBearer()
 jwt_manager = JWTManager()
 
 
-async def get_user_roadmaps(
+async def get_team_available_roadmaps(
+    team_id: int,
     credentials: HTTPAuthorizationCredentials = Depends(security),
     db: AsyncSession = Depends(get_db),
 ) -> list[Roadmap]:
+    """Получить доступные роудмапы команды для копирования"""
     try:
         sub = jwt_manager.verify_access_token(credentials.credentials)
         user_id = int(sub)
@@ -27,24 +30,31 @@ async def get_user_roadmaps(
             detail=str(exc),
         )
 
-    # Показываем только личные роудмапы пользователя:
-    # 1. Созданные самим (Goal.user_id == user_id)
-    # 2. Скопированные (есть запись в RoadmapCopy с user_id)
-    
-    # Получаем скопированные роудмапы
+    # Проверяем что пользователь состоит в команде
+    member_stmt = select(TeamMember).where(
+        TeamMember.team_id == team_id,
+        TeamMember.user_id == user_id
+    )
+    member_result = await db.execute(member_stmt)
+    if not member_result.scalars().first():
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Вы не состоите в этой команде"
+        )
+
+    # Получаем скопированные этим пользователем роудмапы
     copies_stmt = select(RoadmapCopy.new_roadmap_id).where(RoadmapCopy.user_id == user_id)
     copies_result = await db.execute(copies_stmt)
     copied_roadmap_ids = copies_result.scalars().all()
 
+    # Получаем все роудмапы команды (которые не скопированы пользователем)
     stmt = (
         select(Roadmap)
         .join(Goal, Goal.goals_id == Roadmap.goals_id)
         .options(selectinload(Roadmap.tasks), selectinload(Roadmap.goal))
         .where(
-            or_(
-                Goal.user_id == user_id,  # Созданные самим
-                Roadmap.roadmap_id.in_(copied_roadmap_ids) if copied_roadmap_ids else False  # Скопированные
-            )
+            Roadmap.team_id == team_id,
+            ~Roadmap.roadmap_id.in_(copied_roadmap_ids) if copied_roadmap_ids else True
         )
         .order_by(Roadmap.updated_at.desc())
     )

@@ -7,11 +7,11 @@ from fastapi import HTTPException, status
 from app.models.roadmap import Roadmap
 from app.models.goal import Goal
 from app.models.task import Task
-from app.models.team_member import TeamMember
+from app.models.roadmap_copy import RoadmapCopy
 
 
 async def _verify_roadmap_access(db: AsyncSession, user_id: int, roadmap_id: int) -> Roadmap:
-    """Проверяет что пользователь может редактировать роудмап: создатель или в команде"""
+    """Проверяет что пользователь может редактировать роудмап: создатель или скопировал"""
     stmt = select(Roadmap).where(Roadmap.roadmap_id == roadmap_id)
     res = await db.execute(stmt)
     roadmap = res.scalars().first()
@@ -26,15 +26,14 @@ async def _verify_roadmap_access(db: AsyncSession, user_id: int, roadmap_id: int
     if goal and goal.user_id == user_id:
         return roadmap
 
-    # Или роудмап в команде пользователя
-    if roadmap.team_id:
-        team_member_stmt = select(TeamMember).where(
-            TeamMember.team_id == roadmap.team_id,
-            TeamMember.user_id == user_id
-        )
-        team_member_res = await db.execute(team_member_stmt)
-        if team_member_res.scalars().first():
-            return roadmap
+    # Или пользователь скопировал роудмап
+    copy_stmt = select(RoadmapCopy).where(
+        RoadmapCopy.new_roadmap_id == roadmap_id,
+        RoadmapCopy.user_id == user_id
+    )
+    copy_res = await db.execute(copy_stmt)
+    if copy_res.scalars().first():
+        return roadmap
 
     raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="У вас нет доступа к этой дорожной карте")
 

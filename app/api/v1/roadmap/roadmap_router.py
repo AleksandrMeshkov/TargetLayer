@@ -1,6 +1,7 @@
 from app.services.roadmap.view_all_roadmaps_team import get_team_roadmaps
 from app.services.roadmap.share_my_roadmap import share_roadmap_with_team
 from app.services.roadmap.copy_roadmap import copy_roadmap
+from app.services.roadmap.get_team_available_roadmaps import get_team_available_roadmaps
 from pydantic import BaseModel
 from fastapi import APIRouter, Depends, HTTPException, status, Security, Path
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
@@ -69,6 +70,19 @@ async def get_roadmaps_by_team(
     db: AsyncSession = Depends(get_db),
 ):
     roadmaps = await get_team_roadmaps(db, team_id)
+    return RoadmapsListResponse(roadmaps=roadmaps, total=len(roadmaps))
+
+@router.get(
+    "/team/{team_id}/available",
+    response_model=RoadmapsListResponse,
+    openapi_extra={"security": [{"Bearer": []}]}
+)
+async def get_available_roadmaps(
+    team_id: int = Path(..., gt=0, description="ID команды"),
+    credentials: HTTPAuthorizationCredentials = Security(security),
+    db: AsyncSession = Depends(get_db),
+):
+    roadmaps = await get_team_available_roadmaps(team_id, credentials, db)
     return RoadmapsListResponse(roadmaps=roadmaps, total=len(roadmaps))
 
 @router.post(
