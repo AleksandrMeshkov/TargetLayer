@@ -51,7 +51,7 @@ async def delete_user_roadmap(
             delete(RoadmapCopy).where(RoadmapCopy.original_roadmap_id == roadmap_id)
         )
         # Теперь удаляем сам роудмап
-        await db.delete(roadmap)
+        await db.execute(delete(Roadmap).where(Roadmap.roadmap_id == roadmap_id))
         await db.commit()
         return {
             "status": "success",
@@ -70,8 +70,10 @@ async def delete_user_roadmap(
     if copy_record:
         # Пользователь удаляет свою копию
         # Удаляем запись копирования и сам роудмап-копию
-        await db.delete(copy_record)
-        await db.delete(roadmap)
+        await db.execute(
+            delete(RoadmapCopy).where(RoadmapCopy.id == copy_record.id)
+        )
+        await db.execute(delete(Roadmap).where(Roadmap.roadmap_id == roadmap_id))
         await db.commit()
         return {
             "status": "success",

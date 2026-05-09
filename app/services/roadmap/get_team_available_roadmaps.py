@@ -47,15 +47,18 @@ async def get_team_available_roadmaps(
     copies_result = await db.execute(copies_stmt)
     copied_roadmap_ids = copies_result.scalars().all()
 
+    # Строим условие поиска
+    where_conditions = [Roadmap.team_id == team_id]
+    
+    if copied_roadmap_ids:
+        where_conditions.append(~Roadmap.roadmap_id.in_(copied_roadmap_ids))
+
     # Получаем все роудмапы команды (которые не скопированы пользователем)
     stmt = (
         select(Roadmap)
         .join(Goal, Goal.goals_id == Roadmap.goals_id)
         .options(selectinload(Roadmap.tasks), selectinload(Roadmap.goal))
-        .where(
-            Roadmap.team_id == team_id,
-            ~Roadmap.roadmap_id.in_(copied_roadmap_ids) if copied_roadmap_ids else True
-        )
+        .where(*where_conditions)
         .order_by(Roadmap.updated_at.desc())
     )
 
