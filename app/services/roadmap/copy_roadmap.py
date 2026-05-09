@@ -6,6 +6,7 @@ from app.models.roadmap import Roadmap
 from app.models.goal import Goal
 from app.models.task import Task
 from app.models.roadmap_copy import RoadmapCopy
+from app.models.roadmap_access import RoadmapAccess
 from datetime import datetime
 import logging
 
@@ -82,6 +83,13 @@ async def copy_roadmap(db: AsyncSession, user_id: int, roadmap_id: int):
 			created_at=datetime.utcnow()
 		)
 		db.add(roadmap_copy)
+		
+		roadmap_access = RoadmapAccess(
+			user_id=user_id,
+			roadmap_id=new_roadmap.roadmap_id,
+			permission="owner"
+		)
+		db.add(roadmap_access)
 		
 		await db.commit()
 		logger.info(f"Роудмап успешно скопирован: {roadmap_id} -> {new_roadmap.roadmap_id}")
