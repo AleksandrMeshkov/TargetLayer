@@ -6,6 +6,7 @@ from sqlalchemy import select, delete
 from app.core.database.database import get_db
 from app.core.security.jwt import JWTManager
 from app.models.roadmap import Roadmap
+from app.models.goal import Goal
 
 security = HTTPBearer()
 jwt_manager = JWTManager()
@@ -33,6 +34,17 @@ async def delete_user_roadmap(
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Роудмап не найден"
+        )
+    
+    # Удалять может только создатель
+    goal_stmt = select(Goal).where(Goal.goals_id == roadmap.goals_id)
+    goal_result = await db.execute(goal_stmt)
+    goal = goal_result.scalars().first()
+    
+    if not goal or goal.user_id != user_id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Только создатель может удалить роудмап"
         )
 
     await db.delete(roadmap)

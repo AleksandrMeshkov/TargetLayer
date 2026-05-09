@@ -1,19 +1,42 @@
 from typing import List
 from datetime import datetime
-from sqlalchemy import select
+from sqlalchemy import select, or_
 from sqlalchemy.ext.asyncio import AsyncSession
 from fastapi import HTTPException, status
 
 from app.models.roadmap import Roadmap
+from app.models.goal import Goal
 from app.models.task import Task
+from app.models.team_member import TeamMember
 
 
-async def _get_roadmap(db: AsyncSession, roadmap_id: int) -> Roadmap:
+async def _verify_roadmap_access(db: AsyncSession, user_id: int, roadmap_id: int) -> Roadmap:
+    """Проверяет что пользователь может редактировать роудмап: создатель или в команде"""
     stmt = select(Roadmap).where(Roadmap.roadmap_id == roadmap_id)
     res = await db.execute(stmt)
     roadmap = res.scalars().first()
     if not roadmap:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Роудмап не найден")
+
+    # Проверяем что пользователь создатель
+    goal_stmt = select(Goal).where(Goal.goals_id == roadmap.goals_id)
+    goal_res = await db.execute(goal_stmt)
+    goal = goal_res.scalars().first()
+    
+    if goal and goal.user_id == user_id:
+        return roadmap
+
+    # Или роудмап в команде пользователя
+    if roadmap.team_id:
+        team_member_stmt = select(TeamMember).where(
+            TeamMember.team_id == roadmap.team_id,
+            TeamMember.user_id == user_id
+        )
+        team_member_res = await db.execute(team_member_stmt)
+        if team_member_res.scalars().first():
+            return roadmap
+
+    raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="У вас нет доступа к этой дорожной карте")
 
     return roadmap
 
@@ -27,7 +50,7 @@ async def create_task_for_roadmap(
     order_index: int | None = 0,
 
 ) -> Task:
-    roadmap = await _get_roadmap(db, roadmap_id)
+    roadmap = await _verify_roadmap_access(db, user_id, roadmap_id)
 
     task = Task(
         roadmap_id=roadmap.roadmap_id,
@@ -51,7 +74,7 @@ async def update_task_for_roadmap(
     task_id: int,
     data: dict,
 ) -> Task:
-    roadmap = await _get_roadmap(db, roadmap_id)
+    roadmap = await _verify_roadmap_access(db, user_id, roadmap_id)
 
     stmt = select(Task).where(Task.task_id == task_id, Task.roadmap_id == roadmap.roadmap_id)
     res = await db.execute(stmt)
@@ -81,7 +104,7 @@ async def delete_task_for_roadmap(
     roadmap_id: int,
     task_id: int,
 ) -> None:
-    roadmap = await _get_roadmap(db, roadmap_id)
+    roadmap = await _verify_roadmap_access(db, user_id, roadmap_id)
 
     stmt = select(Task).where(Task.task_id == task_id, Task.roadmap_id == roadmap.roadmap_id)
     res = await db.execute(stmt)
@@ -100,7 +123,7 @@ async def set_task_complete_for_roadmap(
     task_id: int,
     completed: bool,
 ) -> Task:
-    roadmap = await _get_roadmap(db, roadmap_id)
+    roadmap = await _verify_roadmap_access(db, user_id, roadmap_id)
 
     stmt = select(Task).where(Task.task_id == task_id, Task.roadmap_id == roadmap.roadmap_id)
     res = await db.execute(stmt)
