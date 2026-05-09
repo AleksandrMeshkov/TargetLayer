@@ -14,7 +14,6 @@ from app.models.user import User
 from sqlalchemy import select
 from app.models.goal import Goal
 from app.models.roadmap import Roadmap
-from app.models.roadmap_access import RoadmapAccess
 from app.models.task import Task
 from app.models.team import Team
 from app.models.team_role import TeamRole
@@ -62,13 +61,6 @@ async def ai_chat(
         roadmap = Roadmap(team_id=None, goals_id=goal.goals_id, completed=False)
         db.add(roadmap)
         await db.flush()
-
-        access = RoadmapAccess(
-            roadmap_id=roadmap.roadmap_id,
-            user_id=current_user.user_id,
-            permission="owner",
-        )
-        db.add(access)
 
         tasks = result.get("tasks", [])
         for idx, t in enumerate(tasks):

@@ -7,7 +7,6 @@ from sqlalchemy.orm import selectinload
 from app.core.database.database import get_db
 from app.core.security.jwt import JWTManager
 from app.models.roadmap import Roadmap
-from app.models.roadmap_access import RoadmapAccess
 
 security = HTTPBearer()
 jwt_manager = JWTManager()
@@ -28,11 +27,9 @@ async def get_user_roadmaps(
 
     stmt = (
         select(Roadmap)
-        .join(RoadmapAccess, RoadmapAccess.roadmap_id == Roadmap.roadmap_id)
         .options(selectinload(Roadmap.tasks), selectinload(Roadmap.goal))
-        .where(RoadmapAccess.user_id == user_id, RoadmapAccess.permission.in_(["viewer", "editor", "owner"]))
         .order_by(Roadmap.updated_at.desc())
     )
 
     result = await db.execute(stmt)
-    return list(result.scalars().unique().all())
+    return list(result.scalars().all())

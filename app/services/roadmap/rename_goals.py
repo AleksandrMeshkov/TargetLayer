@@ -7,7 +7,6 @@ from app.core.database.database import get_db
 from app.core.security.jwt import JWTManager
 from app.models.roadmap import Roadmap
 from app.models.goal import Goal
-from app.models.roadmap_access import RoadmapAccess
 
 security = HTTPBearer()
 jwt_manager = JWTManager()
@@ -40,27 +39,14 @@ async def update_goal_in_roadmap(
             detail="Роудмап не найден"
         )
     
-    access_stmt = select(RoadmapAccess).where(
-        (RoadmapAccess.roadmap_id == roadmap.roadmap_id)
-        & (RoadmapAccess.user_id == user_id)
-        & (RoadmapAccess.permission.in_(["editor", "owner"]))
-    )
-    access_result = await db.execute(access_stmt)
-    access = access_result.scalars().first()
-    if not access:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Цель не найдена или у вас нет разрешения на ее обновление"
-        )
-    
-    goal_stmt = select(Goal).where(Goal.goals_id == roadmap.goals_id, Goal.user_id == user_id)
+    goal_stmt = select(Goal).where(Goal.goals_id == roadmap.goals_id)
     goal_result = await db.execute(goal_stmt)
     goal = goal_result.scalars().first()
 
     if not goal:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Цель не найдена или у вас нет разрешения на ее обновление"
+            detail="Цель не найдена"
         )
     
     goal.title = goal_title

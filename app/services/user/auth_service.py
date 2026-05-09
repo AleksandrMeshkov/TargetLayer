@@ -13,7 +13,6 @@ from app.models.team_role import TeamRole
 from app.models.team_member import TeamMember
 from app.models.roadmap import Roadmap
 from app.models.goal import Goal
-from app.models.roadmap_access import RoadmapAccess
 from app.models.task import Task
 
 

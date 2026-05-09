@@ -20,9 +20,6 @@ class User(Base):
 
     goals: Mapped[list["Goal"]] = relationship("Goal", back_populates="user", cascade="all, delete-orphan")
     messages: Mapped[list["Message"]] = relationship("Message", back_populates="user", cascade="all, delete-orphan")
-    roadmap_access_entries: Mapped[list["RoadmapAccess"]] = relationship(
-        "RoadmapAccess", back_populates="user", cascade="all, delete-orphan"
-    )
     team_memberships: Mapped[list["TeamMember"]] = relationship(
         "TeamMember", back_populates="user", cascade="all, delete-orphan"
     )

@@ -5,26 +5,15 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from fastapi import HTTPException, status
 
 from app.models.roadmap import Roadmap
-from app.models.roadmap_access import RoadmapAccess
 from app.models.task import Task
 
 
-async def _verify_roadmap_owner(db: AsyncSession, user_id: int, roadmap_id: int) -> Roadmap:
+async def _get_roadmap(db: AsyncSession, roadmap_id: int) -> Roadmap:
     stmt = select(Roadmap).where(Roadmap.roadmap_id == roadmap_id)
     res = await db.execute(stmt)
     roadmap = res.scalars().first()
     if not roadmap:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Роудмап не найден")
-
-    access_stmt = select(RoadmapAccess).where(
-        RoadmapAccess.roadmap_id == roadmap.roadmap_id,
-        RoadmapAccess.user_id == user_id,
-        RoadmapAccess.permission.in_(["editor", "owner"]),
-    )
-    access_res = await db.execute(access_stmt)
-    access = access_res.scalars().first()
-    if not access:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="У вас нет доступа к этой дорожной карте")
 
     return roadmap
 
@@ -38,7 +27,7 @@ async def create_task_for_roadmap(
     order_index: int | None = 0,
 
 ) -> Task:
-    roadmap = await _verify_roadmap_owner(db, user_id, roadmap_id)
+    roadmap = await _get_roadmap(db, roadmap_id)
 
     task = Task(
         roadmap_id=roadmap.roadmap_id,
@@ -62,7 +51,7 @@ async def update_task_for_roadmap(
     task_id: int,
     data: dict,
 ) -> Task:
-    roadmap = await _verify_roadmap_owner(db, user_id, roadmap_id)
+    roadmap = await _get_roadmap(db, roadmap_id)
 
     stmt = select(Task).where(Task.task_id == task_id, Task.roadmap_id == roadmap.roadmap_id)
     res = await db.execute(stmt)
@@ -92,7 +81,7 @@ async def delete_task_for_roadmap(
     roadmap_id: int,
     task_id: int,
 ) -> None:
-    roadmap = await _verify_roadmap_owner(db, user_id, roadmap_id)
+    roadmap = await _get_roadmap(db, roadmap_id)
 
     stmt = select(Task).where(Task.task_id == task_id, Task.roadmap_id == roadmap.roadmap_id)
     res = await db.execute(stmt)
@@ -111,7 +100,7 @@ async def set_task_complete_for_roadmap(
     task_id: int,
     completed: bool,
 ) -> Task:
-    roadmap = await _verify_roadmap_owner(db, user_id, roadmap_id)
+    roadmap = await _get_roadmap(db, roadmap_id)
 
     stmt = select(Task).where(Task.task_id == task_id, Task.roadmap_id == roadmap.roadmap_id)
     res = await db.execute(stmt)

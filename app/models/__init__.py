@@ -9,7 +9,6 @@ from .team import Team
 from .team_access_link import TeamAccessLink
 from .team_role import TeamRole
 from .team_member import TeamMember
-from .roadmap_access import RoadmapAccess
 from .roadmap_copy import RoadmapCopy
 from .chat_participant import ChatParticipant
 from .ai_conversation import AIConversation
