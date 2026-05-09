@@ -13,6 +13,12 @@ class AIConversation(Base):
     user_id: Mapped[int] = mapped_column(
         Integer, ForeignKey("users.user_id", ondelete="CASCADE"), nullable=False, index=True
     )
+    active_goal_id: Mapped[int | None] = mapped_column(
+        Integer, ForeignKey("goals.goals_id", ondelete="SET NULL"), nullable=True, index=True
+    )
+    active_roadmap_id: Mapped[int | None] = mapped_column(
+        Integer, ForeignKey("roadmaps.roadmap_id", ondelete="SET NULL"), nullable=True, index=True
+    )
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=datetime.utcnow, onupdate=datetime.utcnow

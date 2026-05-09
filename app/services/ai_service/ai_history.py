@@ -1,4 +1,5 @@
 from typing import List, Dict, Any, Optional
+from datetime import datetime
 
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
@@ -36,6 +37,8 @@ async def save_chat(
 	user_content: str,
 	ai_content: str,
 	conversation_id: Optional[int] = None,
+	active_goal_id: Optional[int] = None,
+	active_roadmap_id: Optional[int] = None,
 ) -> int:
 	
 	if conversation_id is not None:
@@ -49,6 +52,12 @@ async def save_chat(
 		db.add(conv)
 		await db.flush()
 		conversation_id = conv.conversation_id
+
+	if active_goal_id is not None:
+		conv.active_goal_id = active_goal_id
+	if active_roadmap_id is not None:
+		conv.active_roadmap_id = active_roadmap_id
+	conv.updated_at = datetime.utcnow()
 
 	user_role = await _get_or_create_ai_message_role(db, "user")
 	assistant_role = await _get_or_create_ai_message_role(db, "assistant")
@@ -64,7 +73,6 @@ async def save_chat(
 		content=ai_content,
 	)
 	db.add_all([user_msg, ai_msg])
-	await db.commit()
 	return conversation_id
 
 
