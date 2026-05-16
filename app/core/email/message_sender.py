@@ -66,7 +66,7 @@ class MessageSender:
     async def send_team_invite_link(self, email: str, token: str) -> bool:
         try:
             subject = "Приглашение в команду TargetLayer"
-            invite_url = settings.build_backend_team_invite_accept_url(token)
+            invite_url = settings.build_frontend_team_invite_url(token)
 
             if invite_template_path.exists():
                 html = invite_template_path.read_text(encoding="utf-8")

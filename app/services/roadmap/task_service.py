@@ -11,14 +11,12 @@ from app.models.roadmap_copy import RoadmapCopy
 
 
 async def _verify_roadmap_access(db: AsyncSession, user_id: int, roadmap_id: int) -> Roadmap:
-    """Проверяет что пользователь может редактировать роудмап: создатель или скопировал"""
     stmt = select(Roadmap).where(Roadmap.roadmap_id == roadmap_id)
     res = await db.execute(stmt)
     roadmap = res.scalars().first()
     if not roadmap:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Роудмап не найден")
 
-    # Проверяем что пользователь создатель
     goal_stmt = select(Goal).where(Goal.goals_id == roadmap.goals_id)
     goal_res = await db.execute(goal_stmt)
     goal = goal_res.scalars().first()
@@ -26,7 +24,6 @@ async def _verify_roadmap_access(db: AsyncSession, user_id: int, roadmap_id: int
     if goal and goal.user_id == user_id:
         return roadmap
 
-    # Или пользователь скопировал роудмап
     copy_stmt = select(RoadmapCopy).where(
         RoadmapCopy.new_roadmap_id == roadmap_id,
         RoadmapCopy.user_id == user_id

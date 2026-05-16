@@ -70,7 +70,6 @@ class AuthService:
 		self.db.add(user)
 		await self.db.flush()
 
-		# Создаём роль 'Администратор', если её нет
 		owner_role_stmt = select(TeamRole).where(TeamRole.name == "Администратор")
 		owner_role_result = await self.db.execute(owner_role_stmt)
 		owner_role = owner_role_result.scalar_one_or_none()

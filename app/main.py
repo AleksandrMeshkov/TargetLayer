@@ -72,7 +72,6 @@ app.include_router(chat_router)
 
 @app.on_event("startup")
 async def init_db():
-	"""Initialize database with default data."""
 	async with AsyncSessionLocal() as db:
 		await init_team_roles(db)
 		logger.info("Database initialized: team roles created")

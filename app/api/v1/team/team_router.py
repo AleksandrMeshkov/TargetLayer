@@ -6,6 +6,7 @@ from app.models.team import Team
 from app.models.team_member import TeamMember
 from app.models.user import User
 from app.schemas import team as team_schemas
+from app.services.team_service.accept_team_invite import accept_team_invite
 from app.services.team_service.create_team import create_team as create_team_service
 from app.services.team_service.delete_team import delete_team as delete_team_service
 from app.services.team_service.get_team_members import get_team_members
@@ -28,6 +29,25 @@ router = APIRouter(prefix="/api/v1/teams", tags=["teams"])
 async def accept_invite_link_redirect(token: str):
 	frontend_url = settings.build_frontend_team_invite_url(token)
 	return RedirectResponse(url=frontend_url, status_code=status.HTTP_302_FOUND)
+
+
+@router.post(
+	"/invite/accept",
+	response_model=team_schemas.TeamInviteAcceptResponse,
+	status_code=status.HTTP_200_OK,
+	openapi_extra={"security": [{"Bearer": []}]},
+)
+async def accept_invite_link(
+	payload: team_schemas.TeamInviteAcceptRequest,
+	current_user: User = Security(get_current_user),
+	db: AsyncSession = Depends(get_db),
+) -> team_schemas.TeamInviteAcceptResponse:
+	result = await accept_team_invite(
+		db=db,
+		current_user=current_user,
+		token=payload.token,
+	)
+	return team_schemas.TeamInviteAcceptResponse(**result)
 
 
 @router.post(
