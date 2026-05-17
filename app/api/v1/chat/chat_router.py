@@ -23,6 +23,7 @@ from app.schemas import chat as chat_schemas
 from app.services.user.get_my_user import get_current_user
 from app.services.chat.ws_manager import chat_ws_manager
 from app.services.chat.participant_service import leave_chat
+from app.services.chat.rename_chat import rename_chat
 
 
 router = APIRouter(prefix="/api/v1/chats", tags=["chats"])
@@ -87,7 +88,6 @@ async def get_my_chats(
 	current_user: User = Security(get_current_user),
 	db: AsyncSession = Depends(get_db),
 ) -> chat_schemas.ChatListResponse:
-	"""Получить список моих чатов"""
 	stmt = (
 		select(Chat)
 		.join(ChatParticipant, ChatParticipant.chat_id == Chat.chat_id)
@@ -170,21 +170,13 @@ async def update_chat(
 	current_user: User = Security(get_current_user),
 	db: AsyncSession = Depends(get_db),
 ) -> Chat:
-	"""Изменить название чата"""
-	await _ensure_user_is_chat_participant(db, chat_id=chat_id, user_id=current_user.user_id)
+	chat = await rename_chat(
+		db,
+		chat_id=chat_id,
+		user_id=current_user.user_id,
+		new_name=payload.name,
+	)
 	
-	stmt = select(Chat).where(Chat.chat_id == chat_id)
-	result = await db.execute(stmt)
-	chat = result.scalar_one_or_none()
-	
-	if not chat:
-		raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Чат не найден")
-	
-	chat.name = payload.name
-	await db.commit()
-	await db.refresh(chat)
-	
-	# Broadcast to other participants that chat name changed
 	await chat_ws_manager.broadcast(
 		chat_id=chat_id,
 		message={"event": "chat_updated", "data": {"chat_id": chat_id, "name": chat.name}},
@@ -203,10 +195,8 @@ async def leave_chat_endpoint(
 	current_user: User = Security(get_current_user),
 	db: AsyncSession = Depends(get_db),
 ) -> dict:
-	"""Выйти из чата"""
 	await leave_chat(db, chat_id=chat_id, user_id=current_user.user_id)
 	
-	# Broadcast to other participants that user left
 	await chat_ws_manager.broadcast(
 		chat_id=chat_id,
 		message={"event": "user_left", "data": {"user_id": current_user.user_id}},
@@ -323,7 +313,7 @@ async def chat_websocket(
             return
 
     await chat_ws_manager.connect(chat_id=chat_id, user_id=user_id, websocket=websocket)
-    logger.info("✅ WS connected: user=%s, chat=%s", user_id, chat_id)
+    logger.info("WS connected: user=%s, chat=%s", user_id, chat_id)
 
     try:
         async with AsyncSessionLocal() as db:
@@ -340,10 +330,10 @@ async def chat_websocket(
                 for m in messages
             ]
             await websocket.send_json({"event": "history", "data": payload})
-            logger.info("📤 Sent history: %d messages to chat=%s", len(payload), chat_id)
+            logger.info("Sent history: %d messages to chat=%s", len(payload), chat_id)
             
     except Exception as e:
-        logger.error("❌ History send error: %s", e, exc_info=True)
+        logger.error("History send error: %s", e, exc_info=True)
         await websocket.send_json({"event": "error", "detail": "Ошибка загрузки истории"})
 
     try:
@@ -357,7 +347,7 @@ async def chat_websocket(
                         for p in participants]
             })
     except Exception as e:
-        logger.error("❌ Participants send error: %s", e, exc_info=True)
+        logger.error("Participants send error: %s", e, exc_info=True)
 
     try:
         while True:
@@ -446,7 +436,7 @@ async def chat_websocket(
     except WebSocketDisconnect:
         logger.info("🔌 WS disconnected: user=%s, chat=%s", user_id, chat_id)
     except Exception as e:
-        logger.error("💥 WS fatal error: %s", e, exc_info=True)
+        logger.error("WS fatal error: %s", e, exc_info=True)
         try:
             if websocket.client_state == WebSocketState.CONNECTED:
                 await websocket.send_json({"event": "error", "detail": "Критическая ошибка"})
