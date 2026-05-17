@@ -33,3 +33,8 @@ class User(Base):
     created_team_access_links: Mapped[list["TeamAccessLink"]] = relationship(
         "TeamAccessLink", back_populates="created_by_user", cascade="all, delete-orphan"
     )
+    roadmap_access_entries: Mapped[list["RoadmapAccess"]] = relationship(
+        "RoadmapAccess",
+        back_populates="user",
+        cascade="all, delete-orphan",
+    )

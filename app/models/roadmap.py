@@ -17,6 +17,11 @@ class Roadmap(Base):
     team: Mapped["Team"] = relationship("Team", back_populates="roadmaps")
     goal: Mapped["Goal"] = relationship("Goal", back_populates="roadmap")
     tasks: Mapped[list["Task"]] = relationship("Task", back_populates="roadmap", cascade="all, delete-orphan")
+    access_entries: Mapped[list["RoadmapAccess"]] = relationship(
+        "RoadmapAccess",
+        back_populates="roadmap",
+        cascade="all, delete-orphan",
+    )
     source_copies: Mapped[list["RoadmapCopy"]] = relationship(
         "RoadmapCopy",
         foreign_keys="RoadmapCopy.original_roadmap_id",
