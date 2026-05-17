@@ -25,6 +25,10 @@ from app.models.task import Task
 from app.services.user.get_my_user import get_current_user
 from app.models.user import User
 from app.schemas.roadmap import TaskCreate, TaskUpdate
+from app.schemas.roadmap import TaskCreate, TaskUpdate
+from app.services.roadmap.create_roadmap_and_task import create_roadmap_manual
+from pydantic import Field
+from typing import List, Optional
 
 router = APIRouter(prefix="/api/v1/roadmaps", tags=["roadmaps"])
 security = HTTPBearer()
@@ -218,5 +222,34 @@ async def update_goal(
         goal_data.description,
         credentials,
         db
+    )
+    return result
+
+
+class RoadmapCreate(BaseModel):
+    title: str = Field(..., description="Title for the goal / roadmap")
+    description: Optional[str] = Field(None, description="Goal description")
+    team_id: Optional[int] = Field(None, description="Optional team id to attach roadmap to")
+    tasks: Optional[List[TaskCreate]] = Field(None, description="Optional initial tasks")
+
+
+@router.post(
+    "",
+    response_model=dict,
+    status_code=status.HTTP_201_CREATED,
+    openapi_extra={"security": [{"Bearer": []}]}
+)
+async def create_roadmap(
+    payload: RoadmapCreate,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    result = await create_roadmap_manual(
+        db=db,
+        user_id=int(current_user.user_id),
+        title=payload.title,
+        description=payload.description,
+        tasks=[t.model_dump() for t in (payload.tasks or [])],
+        team_id=payload.team_id,
     )
     return result
