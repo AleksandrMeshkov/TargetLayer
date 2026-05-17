@@ -1,9 +1,8 @@
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, delete
+from sqlalchemy import select
 from fastapi import HTTPException, status
 
 from app.models.roadmap import Roadmap
-from app.models.roadmap_access import RoadmapAccess
 from app.services.team_service.get_owned_team import get_owned_team
 from app.models.user import User
 
@@ -20,8 +19,6 @@ async def delete_team_roadmap(db: AsyncSession, user: User, team_id: int, roadma
 
     roadmap.team_id = None
     db.add(roadmap)
-
-    await db.execute(delete(RoadmapAccess).where(RoadmapAccess.roadmap_id == roadmap_id))
 
     await db.commit()
 
