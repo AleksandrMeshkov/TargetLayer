@@ -165,11 +165,11 @@ class AIRoadmapService:
         data = json.loads(cleaned)
 
         if not isinstance(data, dict):
-            raise ValueError("Expected JSON object at root level")
+            raise ValueError("Ожидаемый объект JSON на корневом уровне")
         if "goal_title" not in data or "tasks" not in data:
-            raise ValueError("Missing required fields: goal_title, tasks")
+            raise ValueError("Отсутствуют необходимые поля: goal_title, tasks")
         if not isinstance(data["tasks"], list):
-            raise ValueError("tasks must be an array")
+            raise ValueError("задачи должны представлять собой массив")
 
         return data
 

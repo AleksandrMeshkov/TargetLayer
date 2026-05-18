@@ -1,11 +1,8 @@
 from __future__ import annotations
-
 import asyncio
 from collections import defaultdict
 from typing import DefaultDict
-
 from fastapi import WebSocket
-
 
 class ChatWebSocketManager:
 	def __init__(self) -> None:

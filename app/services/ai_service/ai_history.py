@@ -46,7 +46,7 @@ async def save_chat(
 		res = await db.execute(stmt)
 		conv = res.scalar_one_or_none()
 		if not conv or conv.user_id != user_id:
-			raise ValueError("Conversation not found or does not belong to user")
+			raise ValueError("Беседа не найдена или не принадлежит пользователю")
 	else:
 		conv = AIConversation(user_id=user_id)
 		db.add(conv)

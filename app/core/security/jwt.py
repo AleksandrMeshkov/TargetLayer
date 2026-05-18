@@ -54,25 +54,25 @@ class JWTManager:
     def verify_access_token(self, token: str) -> str:
         payload = self._decode(token)
         if payload.get("type") != "access":
-            raise InvalidTokenError("wrong token type")
+            raise InvalidTokenError("неправильный тип токена")
         return payload.get("sub")
 
     def verify_refresh_token(self, token: str) -> str:
         payload = self._decode(token)
         if payload.get("type") != "refresh":
-            raise InvalidTokenError("wrong token type")
+            raise InvalidTokenError("неправильный тип токена")
         return payload.get("sub")
 
     def verify_recovery_token(self, token: str) -> str:
         payload = self._decode(token)
         if payload.get("type") != "recovery":
-            raise InvalidTokenError("wrong token type")
+            raise InvalidTokenError("неправильный тип токена")
         return payload.get("sub")
 
     def verify_invite_token(self, token: str) -> str:
         payload = self._decode(token)
         if payload.get("type") != "invite":
-            raise InvalidTokenError("wrong token type")
+            raise InvalidTokenError("неправильный тип токена")
         return payload.get("sub")
 
     def rotate_tokens(self, refresh_token: str) -> tuple[str, str]:
@@ -91,11 +91,11 @@ class InviteJWTManager(JWTManager):
         subject = self.verify_invite_token(token)
         parts = (subject or "").split(":")
         if len(parts) < 3 or parts[0] != "team":
-            raise InvalidTokenError("wrong invite subject")
+            raise InvalidTokenError("неверная тема приглашения")
         try:
             return int(parts[1])
         except ValueError as exc:
-            raise InvalidTokenError("wrong invite subject") from exc
+            raise InvalidTokenError("неверная тема приглашения") from exc
 
 
 def hash_invite_token(token: str) -> str:
