@@ -33,7 +33,7 @@ class UserService:
         user = result.scalars().first()
         
         if not user:
-            raise ValueError("User not found")
+            raise ValueError("Пользователь не найден")
         
         user.name = name_data.name
         user.surname = name_data.surname

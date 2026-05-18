@@ -6,9 +6,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.security.jwt import InviteJWTManager, hash_invite_token
 from app.models.team_access_link import TeamAccessLink
+from app.models.team_role import TeamRole
 from app.models.team_member import TeamMember
 from app.models.user import User
-from app.services.team_service.get_or_create_team_role import get_or_create_team_role
 
 
 async def accept_team_invite(
@@ -80,7 +80,11 @@ async def accept_team_invite(
             "status": "already_member",
         }
 
-    role = await get_or_create_team_role(db, "Участник")
+    stmt_role = select(TeamRole).where(TeamRole.name == "Участник")
+    res_role = await db.execute(stmt_role)
+    role = res_role.scalar_one_or_none()
+    if not role:
+        raise HTTPException(status_code=500, detail="Team role 'Участник' not found")
     if access_link.permission != role.name:
         access_link.permission = role.name
     membership = TeamMember(

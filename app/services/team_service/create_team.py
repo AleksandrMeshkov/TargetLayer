@@ -5,7 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.team import Team
 from app.models.team_member import TeamMember
 from app.models.user import User
-from app.services.team_service.get_or_create_team_role import get_or_create_team_role
+from app.models.team_role import TeamRole
 
 
 async def create_team(db: AsyncSession, user: User, name: str) -> Team:
@@ -27,8 +27,13 @@ async def create_team(db: AsyncSession, user: User, name: str) -> Team:
 	team = Team(name=team_name)
 	db.add(team)
 	await db.flush()
-
-	admin_role = await get_or_create_team_role(db, "Администратор")
+	stmt_role = select(TeamRole).where(TeamRole.name == "Администратор")
+	res_role = await db.execute(stmt_role)
+	admin_role = res_role.scalar_one_or_none()
+	if not admin_role:
+		admin_role = TeamRole(name="Администратор")
+		db.add(admin_role)
+		await db.flush()
 	owner_membership = TeamMember(
 		team_id=team.team_id,
 		user_id=user.user_id,

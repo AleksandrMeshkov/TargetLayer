@@ -15,7 +15,7 @@ async def leave_team(db: AsyncSession, user: User, team_id: int) -> None:
 	if not membership:
 		raise HTTPException(
 			status_code=status.HTTP_404_NOT_FOUND,
-			detail="User is not a member of this team",
+			detail="Пользователь не является членом этой команды",
 		)
 	await db.delete(membership)
 	await db.commit()

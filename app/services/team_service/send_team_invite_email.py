@@ -9,7 +9,6 @@ from app.core.security.jwt import InviteJWTManager, hash_invite_token
 from app.core.settings.settings import settings
 from app.models.team_access_link import TeamAccessLink
 from app.models.user import User
-from app.services.team_service.get_or_create_team_role import get_or_create_team_role
 from app.services.team_service.get_owned_team import get_owned_team
 
 
@@ -28,7 +27,6 @@ async def send_team_invite_email(
     if not invited_user or not invited_user.email:
         raise HTTPException(status_code=404, detail="Пользователь не найден")
 
-    role = await get_or_create_team_role(db, "Участник")
     jwt_manager = InviteJWTManager()
     token = jwt_manager.create_team_invite_token(team_id)
 
@@ -37,7 +35,7 @@ async def send_team_invite_email(
     access_link = TeamAccessLink(
         team_id=team_id,
         token_hash=hash_invite_token(token),
-        permission=role.name,
+        permission="Участник",
         expires_at=expires_at,
         used_at=None,
         uses_left=1,

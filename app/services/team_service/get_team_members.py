@@ -14,7 +14,7 @@ async def get_team_members(db: AsyncSession, user: User, team_id: int) -> list[d
 	if not team:
 		raise HTTPException(
 			status_code=status.HTTP_404_NOT_FOUND,
-			detail="Team not found",
+			detail="Команда не найдена",
 		)
 
 	access_stmt = select(TeamMember).where(
@@ -26,7 +26,7 @@ async def get_team_members(db: AsyncSession, user: User, team_id: int) -> list[d
 	if not membership:
 		raise HTTPException(
 			status_code=status.HTTP_403_FORBIDDEN,
-			detail="You do not have access to this team",
+			detail="У вас нет доступа к этой команде",
 		)
 
 	members_stmt = (

@@ -15,7 +15,7 @@ async def get_owned_team(db: AsyncSession, user: User, team_id: int) -> Team:
 	if not team:
 		raise HTTPException(
 			status_code=status.HTTP_404_NOT_FOUND,
-			detail="Team not found",
+			detail="Команда не найдена",
 		)
 
 	owner_stmt = (

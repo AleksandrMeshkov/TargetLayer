@@ -14,7 +14,7 @@ async def rename_team(db: AsyncSession, user: User, team_id: int, name: str) -> 
 	if not new_name:
 		raise HTTPException(
 			status_code=status.HTTP_400_BAD_REQUEST,
-			detail="Team name is required",
+			detail="Имя команды обязательно",
 		)
 
 	existing_stmt = select(Team).where(Team.name == new_name, Team.team_id != team_id)
@@ -22,7 +22,7 @@ async def rename_team(db: AsyncSession, user: User, team_id: int, name: str) -> 
 	if existing_result.scalar_one_or_none():
 		raise HTTPException(
 			status_code=status.HTTP_409_CONFLICT,
-			detail="Team with this name already exists",
+			detail="Команда с таким именем уже существует",
 		)
 
 	team.name = new_name

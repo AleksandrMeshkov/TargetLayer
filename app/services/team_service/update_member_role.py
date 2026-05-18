@@ -26,7 +26,7 @@ async def update_team_member_role(
 	if not membership:
 		raise HTTPException(
 			status_code=status.HTTP_404_NOT_FOUND,
-			detail="User is not a member of this team",
+			detail="Пользователь не является членом этой команды",
 		)
 
 	role_stmt = select(TeamRole).where(TeamRole.team_role_id == role_id)
@@ -35,7 +35,7 @@ async def update_team_member_role(
 	if not role:
 		raise HTTPException(
 			status_code=status.HTTP_400_BAD_REQUEST,
-			detail=f"Role with ID {role_id} not found",
+			detail=f"Роль с ID {role_id} не найдена",
 		)
 
 	membership.team_role_id = role_id

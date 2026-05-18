@@ -33,9 +33,9 @@ class AuthService:
 		normalized_username = (username or "").strip()
 		normalized_email = (email or "").strip().lower()
 		if not normalized_username:
-			raise ValueError("Username is required")
+			raise ValueError("Имя пользователя обязательно")
 		if not normalized_email:
-			raise ValueError("Email is required")
+			raise ValueError("Адрес электронной почты обязателен")
 
 		username_q = await self.db.execute(
 			select(User).where(func.lower(User.username) == normalized_username.lower())
@@ -47,7 +47,7 @@ class AuthService:
 				and verify_password(password, existing_username.password_hash or "")
 			):
 				return int(existing_username.user_id)
-			raise ValueError("Username already taken")
+			raise ValueError("Имя пользователя уже занято")
 
 		q = await self.db.execute(select(User).where(func.lower(User.email) == normalized_email))
 		existing = q.scalars().first()
@@ -57,7 +57,7 @@ class AuthService:
 				and verify_password(password, existing.password_hash or "")
 			):
 				return int(existing.user_id)
-			raise ValueError("Email already registered")
+			raise ValueError("Адрес электронной почты уже зарегистрирован")
 
 		user = User(
 			username=normalized_username,
