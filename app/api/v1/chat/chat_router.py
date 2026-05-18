@@ -1,9 +1,6 @@
-
 from __future__ import annotations
-
 import logging
 from datetime import datetime
-
 from fastapi import APIRouter, Depends, Path, Security, WebSocket, WebSocketDisconnect, status
 from fastapi import HTTPException
 from jwt import DecodeError
@@ -11,7 +8,6 @@ import jwt as pyjwt
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from starlette.websockets import WebSocketState
-
 from app.core.database.database import AsyncSessionLocal, get_db
 from app.core.security.jwt import JWTManager
 from app.models.chat import Chat
@@ -294,7 +290,7 @@ async def chat_websocket(
             pass
 
         logger.warning(
-            "WS auth exception: %s (%s) unverified={alg:%s,type:%s,exp:%s} chat_id=%s",
+            "Исключение для проверки подлинности WS: %s (%s) unverified={alg:%s,type:%s,exp:%s} chat_id=%s",
             exc.__class__.__name__, str(exc), alg, token_type, exp, chat_id,
             exc_info=True,
         )
@@ -306,7 +302,7 @@ async def chat_websocket(
         try:
             await _ensure_user_is_chat_participant(db, chat_id=chat_id, user_id=user_id)
         except HTTPException as e:
-            logger.info("WS access denied: chat_id=%s, user_id=%s, detail=%s", 
+            logger.info("Доступ к WS запрещен: chat_id=%s, user_id=%s, detail=%s", 
                        chat_id, user_id, e.detail)
             await websocket.send_json({"event": "error", "detail": e.detail})
             await websocket.close(code=4003, reason="Access denied")
@@ -330,10 +326,10 @@ async def chat_websocket(
                 for m in messages
             ]
             await websocket.send_json({"event": "history", "data": payload})
-            logger.info("Sent history: %d messages to chat=%s", len(payload), chat_id)
+            logger.info("Отправленная история: %d messages to chat=%s", len(payload), chat_id)
             
     except Exception as e:
-        logger.error("History send error: %s", e, exc_info=True)
+        logger.error("Ошибка отправки истории: %s", e, exc_info=True)
         await websocket.send_json({"event": "error", "detail": "Ошибка загрузки истории"})
 
     try:
@@ -347,7 +343,7 @@ async def chat_websocket(
                         for p in participants]
             })
     except Exception as e:
-        logger.error("Participants send error: %s", e, exc_info=True)
+        logger.error("Ошибка отправки участников: %s", e, exc_info=True)
 
     try:
         while True:
@@ -378,7 +374,7 @@ async def chat_websocket(
                             message={"event": "message", "data": msg_out},
                         )
                 except Exception as e:
-                    logger.error(f"Send error: {e}", exc_info=True)
+                    logger.error(f"Ошибка отправки: {e}", exc_info=True)
                     await websocket.send_json({"event": "error", "detail": "Ошибка отправки"})
 
             elif action == "delete":
@@ -408,7 +404,7 @@ async def chat_websocket(
                             message={"event": "message_deleted", "data": {"message_id": message_id}},
                         )
                 except Exception as e:
-                    logger.error(f"Delete error: {e}", exc_info=True)
+                    logger.error(f"Ошибка удаления: {e}", exc_info=True)
                     await websocket.send_json({"event": "error", "detail": "Ошибка удаления"})
 
             elif action == "leave":
@@ -430,13 +426,13 @@ async def chat_websocket(
                                 message={"event": "user_left", "data": {"user_id": user_id}},
                             )
                 except Exception as e:
-                    logger.error(f"Leave error: {e}", exc_info=True)
+                    logger.error(f"Ошибка выхода из чата: {e}", exc_info=True)
                 break
 
     except WebSocketDisconnect:
-        logger.info("🔌 WS disconnected: user=%s, chat=%s", user_id, chat_id)
+        logger.info("WS отключен: user=%s, chat=%s", user_id, chat_id)
     except Exception as e:
-        logger.error("WS fatal error: %s", e, exc_info=True)
+        logger.error("Фатальная ошибка WS: %s", e, exc_info=True)
         try:
             if websocket.client_state == WebSocketState.CONNECTED:
                 await websocket.send_json({"event": "error", "detail": "Критическая ошибка"})
@@ -445,4 +441,4 @@ async def chat_websocket(
     finally:
         if user_id is not None:
             await chat_ws_manager.disconnect(chat_id=chat_id, user_id=user_id, websocket=websocket)
-            logger.info("🔻 WS cleanup: user=%s, chat=%s", user_id, chat_id)
+            logger.info("Очистка WS: user=%s, chat=%s", user_id, chat_id)

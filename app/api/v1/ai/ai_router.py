@@ -204,7 +204,7 @@ async def ai_chat(
         await db.rollback()
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"AI parsing error: {str(e)}"
+            detail=f"Ошибка синтаксического анализа искусственного интеллекта: {str(e)}"
         )
     except HTTPException:
         await db.rollback()
@@ -213,7 +213,7 @@ async def ai_chat(
         await db.rollback()
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="AI service temporarily unavailable"
+            detail="Сервис искусственного интеллекта временно недоступен"
         )
 
 
