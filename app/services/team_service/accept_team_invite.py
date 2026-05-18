@@ -4,12 +4,11 @@ from fastapi import HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.security.jwt import InviteJWTManager
+from app.core.security.jwt import InviteJWTManager, hash_invite_token
 from app.models.team_access_link import TeamAccessLink
 from app.models.team_member import TeamMember
 from app.models.user import User
 from app.services.team_service.get_or_create_team_role import get_or_create_team_role
-from app.services.team_service.invite_token import hash_invite_token
 
 
 async def accept_team_invite(

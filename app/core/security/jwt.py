@@ -1,4 +1,5 @@
 from datetime import datetime, timedelta, timezone
+import hashlib
 from typing import Any
 import secrets
 from jwt import encode, decode, ExpiredSignatureError, InvalidTokenError
@@ -95,3 +96,7 @@ class InviteJWTManager(JWTManager):
             return int(parts[1])
         except ValueError as exc:
             raise InvalidTokenError("wrong invite subject") from exc
+
+
+def hash_invite_token(token: str) -> str:
+    return hashlib.sha256(token.encode("utf-8")).hexdigest()

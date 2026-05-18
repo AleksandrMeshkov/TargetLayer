@@ -29,7 +29,6 @@ async def update_team_member_role(
 			detail="User is not a member of this team",
 		)
 
-	# Verify that the role exists
 	role_stmt = select(TeamRole).where(TeamRole.team_role_id == role_id)
 	role_res = await db.execute(role_stmt)
 	role = role_res.scalar_one_or_none()
