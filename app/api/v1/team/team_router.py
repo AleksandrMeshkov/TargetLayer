@@ -36,12 +36,36 @@ async def accept_invite_link_redirect(token: str):
 	try:
 		template = pkg_resources.read_text('app.core.email.templates', 'invite_accept.html')
 	except Exception:
-		# Fallback minimal page if template missing
 		template = "<html><body>Invite page</body></html>"
 
 	html = template.replace('%%TOKEN%%', token or '').replace('%%LOGIN_URL%%', login_url)
 	return HTMLResponse(content=html, status_code=status.HTTP_200_OK)
 
+@router.get(
+	"/my-teams",
+	response_model=team_schemas.TeamListResponse,
+	openapi_extra={"security": [{"Bearer": []}]},
+)
+async def get_my_teams(
+	current_user: User = Security(get_current_user),
+	db: AsyncSession = Depends(get_db),
+) -> team_schemas.TeamListResponse:
+	teams = await get_user_teams(db, current_user)
+	return team_schemas.TeamListResponse(teams=teams, total=len(teams))
+
+
+@router.get(
+	"/{team_id}/users",
+	response_model=team_schemas.TeamMemberListResponse,
+	openapi_extra={"security": [{"Bearer": []}]},
+)
+async def get_team_users(
+	team_id: int = Path(..., gt=0),
+	current_user: User = Security(get_current_user),
+	db: AsyncSession = Depends(get_db),
+) -> team_schemas.TeamMemberListResponse:
+	members = await get_team_members(db, current_user, team_id)
+	return team_schemas.TeamMemberListResponse(users=members, total=len(members))
 
 @router.post(
 	"/invite/accept",
@@ -82,34 +106,6 @@ async def invite_user_by_email(
 	)
 	return team_schemas.TeamInviteEmailResponse(**result)
 
-
-@router.get(
-	"/my-teams",
-	response_model=team_schemas.TeamListResponse,
-	openapi_extra={"security": [{"Bearer": []}]},
-)
-async def get_my_teams(
-	current_user: User = Security(get_current_user),
-	db: AsyncSession = Depends(get_db),
-) -> team_schemas.TeamListResponse:
-	teams = await get_user_teams(db, current_user)
-	return team_schemas.TeamListResponse(teams=teams, total=len(teams))
-
-
-@router.get(
-	"/{team_id}/users",
-	response_model=team_schemas.TeamMemberListResponse,
-	openapi_extra={"security": [{"Bearer": []}]},
-)
-async def get_team_users(
-	team_id: int = Path(..., gt=0),
-	current_user: User = Security(get_current_user),
-	db: AsyncSession = Depends(get_db),
-) -> team_schemas.TeamMemberListResponse:
-	members = await get_team_members(db, current_user, team_id)
-	return team_schemas.TeamMemberListResponse(users=members, total=len(members))
-
-
 @router.post(
 	"",
 	response_model=team_schemas.TeamResponse,
@@ -136,20 +132,6 @@ async def rename_team(
 ) -> Team:
 	return await rename_team_service(db, current_user, team_id, payload.name)
 
-@router.delete(
-	"/{team_id}/leave",
-	response_model=dict,
-	openapi_extra={"security": [{"Bearer": []}]},
-)
-async def leave_team(
-	team_id: int = Path(..., gt=0),
-	current_user: User = Security(get_current_user),
-	db: AsyncSession = Depends(get_db),
-) -> dict:
-	await leave_team_service(db, current_user, team_id)
-	return {"status": "success", "message": "You have left the team"}
-
-
 @router.patch(
 	"/{team_id}/users/{user_id}/role",
 	response_model=team_schemas.TeamMemberResponse,
@@ -170,6 +152,19 @@ async def update_member_role(
 		payload.role_id,
 	)
 	return member
+
+@router.delete(
+	"/{team_id}/leave",
+	response_model=dict,
+	openapi_extra={"security": [{"Bearer": []}]},
+)
+async def leave_team(
+	team_id: int = Path(..., gt=0),
+	current_user: User = Security(get_current_user),
+	db: AsyncSession = Depends(get_db),
+) -> dict:
+	await leave_team_service(db, current_user, team_id)
+	return {"status": "success", "message": "You have left the team"}
 
 @router.delete(
 	"/{team_id}",
