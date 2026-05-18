@@ -86,7 +86,7 @@ async def get_user_by_id(
     if not user:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="User not found"
+            detail="Пользователь не найден"
         )
     
     return user
