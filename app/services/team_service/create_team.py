@@ -13,7 +13,7 @@ async def create_team(db: AsyncSession, user: User, name: str) -> Team:
 	if not team_name:
 		raise HTTPException(
 			status_code=status.HTTP_400_BAD_REQUEST,
-			detail="Team name is required",
+			detail="Требуется указать название команды",
 		)
 
 	existing_stmt = select(Team).where(Team.name == team_name)
@@ -21,7 +21,7 @@ async def create_team(db: AsyncSession, user: User, name: str) -> Team:
 	if existing_result.scalar_one_or_none():
 		raise HTTPException(
 			status_code=status.HTTP_409_CONFLICT,
-			detail="Team with this name already exists",
+			detail="Команда с таким названием уже существует",
 		)
 
 	team = Team(name=team_name)

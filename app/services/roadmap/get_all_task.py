@@ -22,16 +22,13 @@ async def get_tasks_for_roadmap(
     if not roadmap:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Роудмап не найден")
 
-    # Проверяем доступ: создатель или скопировал
     goal_stmt = select(Goal).where(Goal.goals_id == roadmap.goals_id)
     goal_res = await db.execute(goal_stmt)
     goal = goal_res.scalars().first()
     
-    # Может видеть если создатель
     if goal and goal.user_id == user_id:
         return list(roadmap.tasks)
 
-    # Или если скопировал роудмап
     copy_stmt = select(RoadmapCopy).where(
         RoadmapCopy.new_roadmap_id == roadmap_id,
         RoadmapCopy.user_id == user_id

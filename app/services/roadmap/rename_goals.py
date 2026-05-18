@@ -40,7 +40,6 @@ async def update_goal_in_roadmap(
             detail="Роудмап не найден"
         )
     
-    # Проверяем доступ: создатель или скопировал
     goal_stmt = select(Goal).where(Goal.goals_id == roadmap.goals_id)
     goal_result = await db.execute(goal_stmt)
     goal = goal_result.scalars().first()
@@ -51,10 +50,8 @@ async def update_goal_in_roadmap(
             detail="Цель не найдена"
         )
     
-    # Может редактировать если создатель
     can_edit = goal.user_id == user_id
     
-    # Или если скопировал роудмап
     if not can_edit:
         copy_stmt = select(RoadmapCopy).where(
             RoadmapCopy.new_roadmap_id == roadmap_id,

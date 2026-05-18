@@ -37,7 +37,6 @@ async def delete_user_roadmap(
             detail="Роудмап не найден"
         )
     
-    # Проверяем создателя роудмапа
     goal_stmt = select(Goal).where(Goal.goals_id == roadmap.goals_id)
     goal_result = await db.execute(goal_stmt)
     goal = goal_result.scalars().first()
@@ -45,12 +44,9 @@ async def delete_user_roadmap(
     is_creator = goal and goal.user_id == user_id
     
     if is_creator:
-        # Создатель удаляет оригинальный роудмап
-        # Удаляем только саму запись о копировании, но копии остаются у пользователей
         await db.execute(
             delete(RoadmapCopy).where(RoadmapCopy.original_roadmap_id == roadmap_id)
         )
-        # Теперь удаляем сам роудмап
         await db.execute(delete(Roadmap).where(Roadmap.roadmap_id == roadmap_id))
         await db.commit()
         return {
@@ -59,7 +55,6 @@ async def delete_user_roadmap(
             "roadmap_id": roadmap_id
         }
     
-    # Проверяем, это копия пользователя?
     copy_stmt = select(RoadmapCopy).where(
         RoadmapCopy.new_roadmap_id == roadmap_id,
         RoadmapCopy.user_id == user_id
@@ -68,8 +63,6 @@ async def delete_user_roadmap(
     copy_record = copy_result.scalars().first()
     
     if copy_record:
-        # Пользователь удаляет свою копию
-        # Удаляем запись копирования и сам роудмап-копию
         await db.execute(
             delete(RoadmapCopy).where(RoadmapCopy.id == copy_record.id)
         )
@@ -81,7 +74,6 @@ async def delete_user_roadmap(
             "roadmap_id": roadmap_id
         }
     
-    # Не создатель и не скопировал - нет доступа
     raise HTTPException(
         status_code=status.HTTP_403_FORBIDDEN,
         detail="Вы можете удалить только свой роудмап или его копию"

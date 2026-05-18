@@ -20,7 +20,6 @@ async def get_team_available_roadmaps(
     credentials: HTTPAuthorizationCredentials = Depends(security),
     db: AsyncSession = Depends(get_db),
 ) -> list[Roadmap]:
-    """Получить доступные роудмапы команды для копирования"""
     try:
         sub = jwt_manager.verify_access_token(credentials.credentials)
         user_id = int(sub)
@@ -30,7 +29,6 @@ async def get_team_available_roadmaps(
             detail=str(exc),
         )
 
-    # Проверяем что пользователь состоит в команде
     member_stmt = select(TeamMember).where(
         TeamMember.team_id == team_id,
         TeamMember.user_id == user_id
@@ -42,18 +40,15 @@ async def get_team_available_roadmaps(
             detail="Вы не состоите в этой команде"
         )
 
-    # Получаем скопированные этим пользователем роудмапы
     copies_stmt = select(RoadmapCopy.new_roadmap_id).where(RoadmapCopy.user_id == user_id)
     copies_result = await db.execute(copies_stmt)
     copied_roadmap_ids = copies_result.scalars().all()
 
-    # Строим условие поиска
     where_conditions = [Roadmap.team_id == team_id]
     
     if copied_roadmap_ids:
         where_conditions.append(~Roadmap.roadmap_id.in_(copied_roadmap_ids))
 
-    # Получаем все роудмапы команды (которые не скопированы пользователем)
     stmt = (
         select(Roadmap)
         .join(Goal, Goal.goals_id == Roadmap.goals_id)

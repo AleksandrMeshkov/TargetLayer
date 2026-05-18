@@ -27,20 +27,14 @@ async def get_user_roadmaps(
             detail=str(exc),
         )
 
-    # Показываем только личные роудмапы пользователя:
-    # 1. Созданные самим (Goal.user_id == user_id)
-    # 2. Скопированные (есть запись в RoadmapCopy с user_id)
-    
-    # Получаем скопированные роудмапы
     copies_stmt = select(RoadmapCopy.new_roadmap_id).where(RoadmapCopy.user_id == user_id)
     copies_result = await db.execute(copies_stmt)
     copied_roadmap_ids = copies_result.scalars().all()
 
-    # Строим условие поиска
-    conditions = [Goal.user_id == user_id]  # Созданные самим
+    conditions = [Goal.user_id == user_id] 
     
     if copied_roadmap_ids:
-        conditions.append(Roadmap.roadmap_id.in_(copied_roadmap_ids))  # Скопированные
+        conditions.append(Roadmap.roadmap_id.in_(copied_roadmap_ids))
 
     stmt = (
         select(Roadmap)

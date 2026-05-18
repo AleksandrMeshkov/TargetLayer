@@ -20,7 +20,7 @@ async def accept_team_invite(
     if not raw_token:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Invite token is required",
+            detail="Требуется указать токен приглашения",
         )
 
     jwt_manager = InviteJWTManager()
@@ -29,7 +29,7 @@ async def accept_team_invite(
     except Exception:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid invite token",
+            detail="Недопустимый токен приглашения",
         )
 
     token_hash = hash_invite_token(raw_token)
@@ -39,30 +39,30 @@ async def accept_team_invite(
     if not access_link:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Invite link not found",
+            detail="Ссылка на приглашение не найдена",
         )
 
     if access_link.team_id != team_id_from_token:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid invite token",
+            detail="Недопустимый токен приглашения",
         )
 
     now = datetime.now(timezone.utc)
     if access_link.expires_at < now:
         raise HTTPException(
             status_code=status.HTTP_410_GONE,
-            detail="Invite link has expired",
+            detail="Срок действия ссылки на приглашение истек",
         )
     if access_link.used_at is not None:
         raise HTTPException(
             status_code=status.HTTP_410_GONE,
-            detail="Invite link already used",
+            detail="Ссылка на приглашение уже использована",
         )
     if access_link.uses_left is not None and access_link.uses_left <= 0:
         raise HTTPException(
             status_code=status.HTTP_410_GONE,
-            detail="Invite link has no remaining uses",
+            detail="Ссылка на приглашение исчерпала свои действия",
         )
 
     existing_member_stmt = select(TeamMember).where(
@@ -84,7 +84,7 @@ async def accept_team_invite(
     res_role = await db.execute(stmt_role)
     role = res_role.scalar_one_or_none()
     if not role:
-        raise HTTPException(status_code=500, detail="Team role 'Участник' not found")
+        raise HTTPException(status_code=500, detail="Роль команды 'Участник' не найдена")
     if access_link.permission != role.name:
         access_link.permission = role.name
     membership = TeamMember(
