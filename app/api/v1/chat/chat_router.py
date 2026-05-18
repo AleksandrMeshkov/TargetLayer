@@ -242,7 +242,7 @@ async def chat_websocket(
 ) -> None:
     user_id: int | None = None
     logger.info(
-        "WS connect attempt: chat_id=%s client=%s query_keys=%s",
+        "Попытка подключения к WS: chat_id=%s client=%s query_keys=%s",
         chat_id,
         websocket.client,
         list(websocket.query_params.keys()),

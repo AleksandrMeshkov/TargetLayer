@@ -72,7 +72,7 @@ async def ai_chat(
             if conversation is None:
                 raise HTTPException(
                     status_code=status.HTTP_404_NOT_FOUND,
-                    detail="Conversation not found",
+                    detail="Conversation не найден",
                 )
 
             history = await fetch_history(db, current_user.user_id)
